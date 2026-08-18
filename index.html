@@ -882,7 +882,7 @@ Jeśli wymaga adresu – wpisz: ul. Sportowa 6, 55-095 Mirków.
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     const SUPABASE_URL = "https://smimabuumtdjkymxpheq.supabase.co";
-    const SUPABASE_PUBLIC_KEY = "WKLEJ_TUTAJ_PUBLISHABLE_KEY"; // klucz zaczynający się od sb_publishable_
+    const SUPABASE_PUBLIC_KEY = "sb_publishable_hv64LFqZTVbVk6Tza29s9w_dXytRVyr"; // klucz zaczynający się od sb_publishable_
     let sb=null,currentUser=null;
     function supabaseConfigured(){return SUPABASE_URL.startsWith("https://")&&!SUPABASE_PUBLIC_KEY.startsWith("WKLEJ_")}
     function getSb(){if(!supabaseConfigured())return null;if(!sb)sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLIC_KEY);return sb}
