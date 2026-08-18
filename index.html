@@ -906,6 +906,1083 @@ Jeśli wymaga adresu – wpisz: ul. Sportowa 6, 55-095 Mirków.
     async function logoutClient(){const c=getSb();if(c)await c.auth.signOut()}
     function updateAccountUi(u){currentUser=u||null;const l=!!currentUser;document.getElementById("accountStatus").textContent=l?"Zalogowano: "+(currentUser.email||"konto klienta"):"Nie jesteś zalogowany/a.";document.getElementById("accountLoginBtn").classList.toggle("hidden",l);document.getElementById("accountLogoutBtn").classList.toggle("hidden",!l);document.getElementById("accountRefreshBtn").classList.toggle("hidden",!l);const b=document.getElementById("accountOpenBtn");b.textContent=l?"Moje naprawy":"Konto klienta";b.onclick=l?()=>document.getElementById("konto").scrollIntoView({behavior:"smooth"}):openAccount;if(l)loadRepairs();else{document.getElementById("repairsList").innerHTML="";document.getElementById("repairsEmpty").textContent="Po zalogowaniu zobaczysz tutaj swoje zgłoszenia."}}
     function statusRank(status){const s=String(status||"").toLowerCase();if(s.includes("odesł")||s.includes("wysłan"))return 6;if(s.includes("gotow"))return 5;if(s.includes("napraw"))return 4;if(s.includes("akcept"))return 3;if(s.includes("wycen")||s.includes("diagno"))return 2;if(s.includes("odebran")||s.includes("przyję"))return 1;return 0}
+    async function loadRepairs(){
+      const c=getSb();
+      if(!c||!currentUser)return;
+
+      const e=document.getElementById("repairsEmpty");
+      const l=document.getElementById("repairsList");
+
+      e.textContent="Ładowanie zgłoszeń…";
+      l.innerHTML="";
+
+      const {data,error}=await c
+        .from("repairs")
+        .select("ticket_no,model,status,quote_amount,quote_decision,quote_decision_at,created_at,issue_type,problem,admin_note")
+        .order("created_at",{ascending:false});
+
+      if(error){
+        e.textContent="Nie udało się pobrać zgłoszeń: "+error.message;
+        return;
+      }
+
+      if(!data?.length){
+        e.textContent="Nie masz jeszcze żadnych zgłoszeń.";
+        l.innerHTML="";
+        return;
+      }
+
+      e.textContent="";
+      l.innerHTML="";
+
+      const steps=["Zgłoszenie","Przyjęto","Diagnoza / wycena","Akceptacja","Naprawa","Gotowe","Odesłano"];
+
+      data.forEach(r=>{
+        const i=document.createElement("div");
+        i.className="repair-item";
+
+        const d=new Date(r.created_at).toLocaleString("pl-PL");
+        const q=r.quote_amount!=null ? Number(r.quote_amount).toFixed(2)+" zł" : "—";
+        const rank=statusRank(r.status);
+
+        const progress=steps
+          .map((x,idx)=>`<span class="status-step ${idx<=rank?'done':''}">${escapeHtml(x)}</span>`)
+          .join("");
+
+        let quoteDecisionHtml="";
+        if(r.quote_amount!=null){
+          if(r.quote_decision==="accepted"){
+            quoteDecisionHtml=`<div style="margin-top:14px;padding:12px;border:1px solid rgba(89,190,120,.45);border-radius:10px;">
+              <strong>Decyzja klienta:</strong> Wycena zaakceptowana ✅
+            </div>`;
+          }else if(r.quote_decision==="rejected"){
+            quoteDecisionHtml=`<div style="margin-top:14px;padding:12px;border:1px solid rgba(220,90,90,.45);border-radius:10px;">
+              <strong>Decyzja klienta:</strong> Wycena odrzucona ❌
+            </div>`;
+          }else{
+            quoteDecisionHtml=`<div style="margin-top:14px;">
+              <div style="margin-bottom:8px;"><strong>Akceptujesz wycenę ${q}?</strong></div>
+              <button class="btn btn-gold" type="button" style="margin:4px 8px 4px 0;" onclick="setQuoteDecision('${r.ticket_no}','accepted')">Akceptuję wycenę</button>
+              <button class="btn btn-dark" type="button" style="margin:4px 0;" onclick="setQuoteDecision('${r.ticket_no}','rejected')">Nie akceptuję</button>
+            </div>`;
+          }
+        }
+
+        i.innerHTML=`
+          <div class="repair-head">
+            <span class="repair-ticket">${escapeHtml(r.ticket_no)}</span>
+            <span class="repair-status">${escapeHtml(r.status||"Nowe zgłoszenie")}</span>
+          </div>
+          <div class="repair-meta">${escapeHtml(r.model)} • zgłoszono ${d}</div>
+          <div class="status-steps">${progress}</div>
+          <div class="repair-details">
+            <div><strong>Rodzaj problemu:</strong> ${escapeHtml(r.issue_type||"—")}</div>
+            <div><strong>Opis:</strong> ${escapeHtml(r.problem||"—")}</div>
+            <div><strong>Wycena:</strong> ${q}</div>
+            ${r.admin_note?`<div><strong>Informacja z serwisu:</strong> ${escapeHtml(r.admin_note)}</div>`:""}
+            ${quoteDecisionHtml}
+          </div>`;
+
+        l.appendChild(i);
+      });
+    }
+
+    async function setQuoteDecision(ticketNo,decision){
+      const c=getSb();
+      if(!c||!currentUser){
+        alert("Najpierw zaloguj się do konta klienta.");
+        return;
+      }
+
+      const accepted=decision==="accepted";
+      const question=accepted
+        ? "Czy na pewno akceptujesz tę wycenę?"
+        : "Czy na pewno nie akceptujesz tej wyceny?";
+
+      if(!confirm(question))return;
+
+      const {error}=await c
+        .from("repairs")
+        .update({
+          quote_decision:decision,
+          quote_decision_at:new Date().toISOString()
+        })
+        .eq("ticket_no",ticketNo);
+
+      if(error){
+        alert("Nie udało się zapisać decyzji: "+error.message);
+        return;
+      }
+
+      alert(accepted ? "Wycena została zaakceptowana." : "Wycena została odrzucona.");
+      await loadRepairs();
+    }
+
+    async function submitRepair(e){
+      e.preventDefault();
+      const c=getSb();
+      if(!c){
+        openAccount();
+        return setAuthMessage("Najpierw trzeba podłączyć projekt Supabase.","err");
+      }
+
+      const {data:u,error:userError}=await c.auth.getUser();
+      const user=u?.user;
+      if(userError||!user){
+        openAccount();
+        return setAuthMessage("Zaloguj się lub załóż konto, aby wysłać zgłoszenie.","err");
+      }
+
+      const b=document.getElementById("repairSubmitBtn");
+      b.disabled=true;
+      b.textContent="Wysyłanie…";
+
+      try{
+        const payload={
+          user_id:user.id,
+          name:document.getElementById("name").value.trim(),
+          phone:document.getElementById("phone").value.trim(),
+          email:user.email,
+          city:document.getElementById("city").value.trim()||null,
+          model:document.getElementById("model").value.trim(),
+          tracking:document.getElementById("tracking").value.trim()||null,
+          return_address:document.getElementById("returnAddress").value.trim(),
+          return_city:document.getElementById("returnCity").value.trim(),
+          issue_type:document.getElementById("issueType").value,
+          problem:document.getElementById("problem").value.trim()
+        };
+
+        const {data,error}=await c.from("repairs").insert(payload).select("ticket_no").single();
+        if(error) throw error;
+
+        alert("Zgłoszenie zapisane. Numer: "+data.ticket_no);
+        e.target.reset();
+        await loadRepairs();
+        document.getElementById("konto").scrollIntoView({behavior:"smooth"});
+      }catch(err){
+        console.error("Błąd zapisu zgłoszenia:",err);
+        alert("Nie udało się zapisać zgłoszenia: "+(err?.message||"nieznany błąd"));
+      }finally{
+        b.disabled=false;
+        b.textContent="Wyślij zgłoszenie";
+      }
+    }
+    function escapeHtml(v){return String(v??"").replace(/[&<>'"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[ch])}
+    function copyShipping(){const text="Odbiorca: BarberSerwis\nTelefon: +48 782 618 575\nAdres odbioru przesyłek: ul. Sportowa 6, 55-095 Mirków\nInPost: MRK03M\nDPD Pickup: PL83482\nOrlen Paczka: 328169\nPunkt z obsługą DPD: Żabka, ul. Sportowa 2/1, 55-095 Mirków";navigator.clipboard.writeText(text);alert("Dane do wysyłki zostały skopiowane.")}
+    document.getElementById("authModal").addEventListener("click",e=>{if(e.target.id==="authModal")closeAccount()});
+    window.addEventListener("DOMContentLoaded",async()=>{const c=getSb();if(!c)return updateAccountUi(null);const {data}=await c.auth.getSession();updateAccountUi(data?.session?.user||null);c.auth.onAuthStateChange((_e,s)=>updateAccountUi(s?.user||null))});
+  </script>
+
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Naprawa maszynek do strzyżenia i trymerów – BarberSerwis | Cała Polska</title>
+  <meta name="description" content="Naprawa maszynek do strzyżenia i trymerów – serwis wysyłkowy na terenie całej Polski. Czyszczenie, regulacja ostrzy, naprawa usterek. Szybka diagnoza.">
+  <meta name="keywords" content="serwis maszynek do strzyżenia Polska, naprawa maszynek barber, konserwacja maszynek, regulacja lub wymiana ostrzy, serwis wysyłkowy maszynek" />
+  <link rel="icon" type="image/png" href="logo-barberserwis.png" />
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #2b1d12;
+      color: #222;
+      line-height: 1.6;
+      overflow-x: hidden;
+      word-break: break-word;
+    }
+
+    img {
+      max-width: 100%;
+      display: block;
+    }
+
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    header {
+      background: #1e140c;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+    }
+
+    .topbar {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .logo-box {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .logo-box img {
+      height: 80px;
+      width: auto;
+      border-radius: 12px;
+      background: rgba(30,20,12,0.6);
+      padding: 4px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+      flex-shrink: 0;
+    }
+
+    .logo-text {
+      min-width: 0;
+    }
+
+    .logo-text h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.2;
+      color: #e0b36a;
+    }
+
+    .logo-text p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      line-height: 1.4;
+      color: #cbb79c;
+    }
+
+    .top-contact {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-weight: bold;
+      transition: 0.2s ease;
+      cursor: pointer;
+      border: none;
+      line-height: 1.3;
+    }
+
+    .btn-gold {
+      background: #e0b36a;
+      color: #111;
+    }
+
+    .btn-gold:hover {
+      background: #cfa458;
+    }
+
+    .btn-dark {
+      background: #1a1a20;
+      border: 1px solid rgba(255,255,255,0.08);
+      color: #fff;
+    }
+
+    .btn-dark:hover {
+      background: #23232b;
+    }
+
+    .hero {
+      min-height: 720px;
+      background-image: url("hero.png");
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 80px 20px;
+    }
+
+    .hero-content {
+      max-width: 920px;
+      width: 100%;
+      position: relative;
+      z-index: 2;
+    }
+
+    .hero-logo {
+      height: 450px;
+      width: auto;
+      margin: 0 auto 50px;
+      filter: drop-shadow(0 8px 24px rgba(0,0,0,0.45));
+    }
+
+    .hero-badge {
+      display: inline-block;
+      background: rgba(224,179,106,0.15);
+      color: #f0c988;
+      border: 1px solid rgba(224,179,106,0.35);
+      padding: 8px 16px;
+      border-radius: 30px;
+      font-size: 14px;
+      line-height: 1.4;
+      margin-bottom: 18px;
+      box-shadow: 0 0 20px rgba(224,179,106,0.25);
+    }
+
+    .hero h2 {
+      font-size: 48px;
+      line-height: 1.15;
+      margin: 0 0 18px;
+      color: white;
+      text-shadow:
+        0 3px 10px rgba(0,0,0,0.85),
+        0 0 25px rgba(224,179,106,0.30);
+    }
+
+    .hero p {
+      font-size: 18px;
+      line-height: 1.7;
+      color: #f1f1f1;
+      max-width: 760px;
+      margin: 0 auto 28px;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.75);
+    }
+
+    .hero-buttons {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .section {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 70px 24px;
+    }
+
+    .section h3 {
+      font-size: 34px;
+      line-height: 1.2;
+      margin: 0 0 14px;
+      color: #e0b36a;
+      text-align: center;
+    }
+
+    .section-sub {
+      text-align: center;
+      color: #bbb;
+      max-width: 760px;
+      line-height: 1.7;
+      margin: 0 auto 36px;
+    }
+
+    .cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 300px));
+  justify-content: center;
+  gap: 24px;
+}
+
+.card {
+  background: #3a281a;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  padding: 26px;
+  min-height: 240px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.28);
+  border-color: rgba(224,179,106,0.22);
+}
+
+.card h4 {
+  margin: 0 0 12px;
+  color: #fff;
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.card p {
+  margin: 0;
+  color: #d2c6b6;
+  line-height: 1.8;
+}
+    .steps-box,
+    .form-box,
+    .contact-box {
+      background: #18181d;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 18px;
+      padding: 30px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+      margin-top: 10px;
+    }
+
+    .step {
+      background: #202028;
+      border-radius: 14px;
+      padding: 20px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .step-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #e0b36a;
+      color: #111;
+      font-weight: bold;
+      margin-bottom: 12px;
+      line-height: 1;
+    }
+
+    .step h4 {
+      margin: 0 0 10px;
+      font-size: 19px;
+      line-height: 1.3;
+      color: #fff;
+    }
+
+    .step p {
+      margin: 0;
+      color: #bbb;
+      line-height: 1.7;
+    }
+
+    .form-box form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .form-box input,
+    .form-box textarea,
+    .form-box select {
+      width: 100%;
+      padding: 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: #202028;
+      color: #fff;
+      font-size: 15px;
+      line-height: 1.4;
+      font-family: inherit;
+    }
+
+    .form-box input::placeholder,
+    .form-box textarea::placeholder {
+      color: #a9a9a9;
+    }
+
+    .form-box textarea {
+      min-height: 140px;
+      resize: vertical;
+    }
+
+    .form-note {
+      margin-top: 16px;
+      color: #bbb;
+      text-align: center;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .shipping-details p {
+      margin: 10px 0;
+      color: #ddd;
+      line-height: 1.7;
+    }
+
+    .shipping-note {
+      margin-top: 18px;
+      color: #bbb;
+      line-height: 1.7;
+    }
+
+    .contact-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .contact-box h4 {
+      margin: 0 0 14px;
+      color: #e0b36a;
+      font-size: 24px;
+      line-height: 1.3;
+    }
+
+    .contact-box p {
+      margin: 10px 0;
+      color: #ddd;
+      line-height: 1.7;
+    }
+
+    .map-box iframe {
+      width: 100%;
+      height: 100%;
+      min-height: 320px;
+      border: 0;
+      border-radius: 16px;
+    }
+
+    footer {
+      text-align: center;
+      padding: 30px 20px;
+      color: #888;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      margin-top: 30px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 900px) {
+      .hero h2 {
+        font-size: 40px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .hero {
+        min-height: 620px;
+        padding: 60px 16px;
+      }
+
+      .hero-logo {
+        height: 180px;
+        width: auto;
+      }
+
+      .hero-badge {
+        font-size: 13px;
+      }
+
+      .hero h2 {
+        font-size: 32px;
+        line-height: 1.2;
+      }
+
+      .hero p {
+        font-size: 16px;
+        line-height: 1.7;
+      }
+
+      .contact-grid,
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        padding: 14px 16px;
+      }
+
+      .section {
+        padding: 50px 16px;
+      }
+
+      .section h3 {
+        font-size: 28px;
+      }
+
+      .top-contact {
+        width: 100%;
+      }
+
+      .top-contact .btn,
+      .hero-buttons .btn {
+        width: 100%;
+      }
+
+      .steps-box,
+      .form-box,
+      .contact-box {
+        padding: 22px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .logo-box {
+        align-items: flex-start;
+      }
+
+      .logo-text h1 {
+        font-size: 18px;
+      }
+
+      .hero h2 {
+        font-size: 28px;
+      }
+
+      .hero p {
+        font-size: 15px;
+      }
+
+      .card,
+      .step {
+        padding: 18px;
+      }
+    }
+    .menu {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.menu a {
+  color: #cbb79c;
+  font-size: 15px;
+  transition: 0.2s ease;
+}
+
+.menu a:hover {
+  color: #e0b36a;
+}
+  
+    /* ===== Konto klienta / Supabase ===== */
+    .account-btn{white-space:nowrap}.hidden{display:none!important}
+    .auth-modal{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);padding:20px;align-items:center;justify-content:center}
+    .auth-modal.open{display:flex}.auth-card{width:min(520px,100%);background:#18181d;color:#fff;border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.45);position:relative}
+    .auth-close{position:absolute;right:14px;top:10px;border:0;background:transparent;color:#bbb;font-size:28px;cursor:pointer}.auth-tabs{display:flex;gap:10px;margin:18px 0}.auth-tab{flex:1;padding:10px 12px;border-radius:10px;cursor:pointer;border:1px solid rgba(255,255,255,.08);background:#202028;color:#ddd}.auth-tab.active{background:#e0b36a;color:#111}.auth-pane{display:none}.auth-pane.active{display:block}
+    .auth-card input{width:100%;padding:14px;margin:7px 0;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:#202028;color:#fff;font:inherit}.auth-message{margin-top:12px;font-size:14px;line-height:1.5}.auth-message.ok{color:#9fe0a8}.auth-message.err{color:#ff8b8b}
+    .account-bar{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:center;margin:0 auto 24px}.account-status{color:#d2c6b6;font-size:14px}.repairs-list{display:grid;gap:16px;margin-top:22px}.repair-item{background:#202028;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:18px}.repair-head{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;align-items:center}.repair-ticket{color:#e0b36a;font-weight:700}.repair-status{color:#fff;font-weight:700;background:#2c2c36;border-radius:999px;padding:6px 10px;font-size:13px}.repair-meta{color:#bbb;font-size:14px;margin-top:8px}.repair-details{margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.07);display:grid;gap:8px;color:#d8d8d8;font-size:14px}.repair-details strong{color:#f0c988}.status-steps{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.status-step{font-size:12px;padding:6px 9px;border-radius:999px;background:#2b2b34;color:#888;border:1px solid rgba(255,255,255,.05)}.status-step.done{background:rgba(224,179,106,.13);color:#f0c988;border-color:rgba(224,179,106,.3)}.panel-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px}.small-note{font-size:12px;color:#999;margin-top:10px}
+    .privacy-check{display:flex;align-items:flex-start;gap:9px;color:#bbb;font-size:13px;line-height:1.45;margin:4px 0 2px;text-align:left}.privacy-check input{width:auto;margin-top:3px}.privacy-check a{color:#e0b36a;text-decoration:underline}
+  </style>
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=AW-18034553646">
+</script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'AW-18034553646');
+</script>
+  <!-- Event snippet for Zakup conversion page -->
+<script>
+  gtag('event', 'conversion', {
+      'send_to': 'AW-18034553646/-Xi9COWA-44cEK7mxZdD',
+      'transaction_id': ''
+      // 'new_customer': true /* calculate dynamically, populate with true/false */,
+  });
+</script>
+
+</head>
+<body>
+
+  <header>
+    <div class="topbar">
+      <div class="logo-box">
+        <img src="logo-barberserwis3.png" alt="BarberSerwis logo">
+        <div class="logo-text">
+          <h1>BarberSerwis</h1>
+          <p>Serwis maszynek do strzyżenia i trymerów – naprawa i konserwacja</p>
+        </div>
+      </div>
+
+    <div class="top-contact">
+  <nav class="menu">
+    <a href="#wysylka">Nadaj przesyłkę</a>
+    <a href="#formularz">Zgłoś naprawę</a>
+    <a href="#kontakt">Kontakt</a>
+  </nav>
+
+  <a class="btn btn-gold" href="tel:+48782618575">Zadzwoń</a>
+  <button class="btn btn-dark account-btn" id="accountOpenBtn" type="button" onclick="openAccount()">Konto klienta</button>
+</div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-content">
+      <img src="logo-barberserwis5.png" alt="BarberSerwis logo" class="hero-logo">
+
+      <div class="hero-badge">Cała Polska • Serwis wysyłkowy • Szybka diagnoza przed naprawą</div>
+
+      <h2>Naprawa maszynek do strzyżenia i trymerów na terenie całej Polski</h2>
+
+      <p>
+        Czyszczenie, konserwacja, regulacja lub wymiana ostrzy i naprawa usterek maszynek do strzyżenia i trymerów.
+        Najpierw nadajesz przesyłkę, potem zgłaszasz naprawę, a przed wykonaniem usługi otrzymujesz informację o zakresie prac.
+      </p>
+
+      <div class="hero-buttons">
+        <a class="btn btn-gold" href="#wysylka">Nadaj przesyłkę teraz</a>
+        <a class="btn btn-dark" href="#formularz">Zgłoś naprawę</a>
+        <a class="btn btn-dark" href="tel:+48782618575">Telefon</a>
+      </div>
+
+      <p style="margin-top:18px; color:#f0e2c9; font-size:16px;">
+        Szybki kontakt • Serwis wysyłkowy • Obsługa na terenie całej Polski
+      </p>
+      <p style="color:#ddd; text-align:center; max-width:700px; margin:20px auto 0;">
+Serwis i naprawa maszynek do strzyżenia oraz trymerów – Wrocław, Mirków i cała Polska.
+Naprawiam sprzęt barberów i użytkowników domowych: Wahl, Andis, Babyliss, Panasonic i inne.
+</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h3>Dlaczego warto skorzystać z BarberSerwis.com</h3>
+    <p class="section-sub">
+      Prosty proces zgłoszenia, jasna komunikacja i serwis wysyłkowy bez zbędnych formalności.
+    </p>
+
+    <div class="cards">
+      <div class="card">
+        <h4>Prosty proces</h4>
+        <p>Najpierw nadajesz przesyłkę, potem zgłaszasz naprawę i otrzymujesz informację o dalszych krokach.</p>
+      </div>
+
+      <div class="card">
+        <h4>Dokładna diagnoza</h4>
+        <p>Każda maszynka jest sprawdzana pod kątem mechaniki, ostrzy i elektroniki przed wykonaniem serwisu.</p>
+      </div>
+
+      <div class="card">
+        <h4>Obsługa na terenie całej Polski</h4>
+        <p>Nie musisz przyjeżdżać osobiście. Nadajesz paczkę i korzystasz z serwisu wysyłkowego.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h3>Serwis i naprawa maszynek do strzyżenia i trymerów</h3>
+    <p class="section-sub">
+  Wykonuję kompleksowy serwis maszynek do strzyżenia i trymerów używanych w barber shopach
+  i salonach fryzjerskich. Usuwam najczęstsze problemy z pracą urządzeń oraz
+  przywracam ich prawidłowe działanie.<br><br>
+  Naprawa maszynek i trymerów różnych marek – zarówno sprzętu barberskiego, jak i domowego.
+</p>
+
+    <div class="cards">
+      <div class="card">
+        <h4>Czyszczenie maszynki</h4>
+        <p>Dokładne czyszczenie wnętrza maszynki z włosów, kurzu i zabrudzeń, które mogą powodować słabą pracę urządzenia.</p>
+      </div>
+
+      <div class="card">
+        <h4>Konserwacja i smarowanie</h4>
+        <p>Konserwacja mechanizmu oraz smarowanie elementów ruchomych, które poprawia płynność pracy maszynki.</p>
+      </div>
+
+      <div class="card">
+        <h4>Regulacja lub wymiana ostrzy</h4>
+        <p>Precyzyjna regulacja ostrzy, aby maszynka cięła równo, bez szarpania i bez ciągnięcia włosów.
+        Wymiana ostrzy na nowe po stwierdzeniu braku ich naprawy.</p>
+      </div>
+
+      <div class="card">
+        <h4>Naprawa mechanizmu</h4>
+        <p>Naprawa problemów z pracą mechanizmu, zacięciami oraz blokadami spowodowanymi zużyciem lub zabrudzeniem.</p>
+      </div>
+
+      <div class="card">
+        <h4>Naprawa elektroniki</h4>
+        <p>Diagnoza problemów z zasilaniem i elektroniką oraz naprawa usterek, jeśli naprawa jest opłacalna.</p>
+      </div>
+
+      <div class="card">
+        <h4>Serwis po upadku</h4>
+        <p>Sprawdzenie maszynki po upadku – kontrola obudowy, ostrzy oraz elementów mechanicznych.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h3>Jak wygląda serwis maszynki lub trymera</h3>
+    <p class="section-sub">
+      Każda maszynka trafiająca do serwisu przechodzi dokładną diagnozę.
+      Na tej podstawie określany jest zakres naprawy oraz koszt usługi.
+    </p>
+
+    <div class="steps-box">
+      <div class="steps-grid">
+        <div class="step">
+          <div class="step-number">1</div>
+          <h4>Diagnoza sprzętu</h4>
+          <p>Sprawdzam stan maszynki, ostrzy oraz mechanizmu.</p>
+        </div>
+
+        <div class="step">
+          <div class="step-number">2</div>
+          <h4>Informacja o naprawie</h4>
+          <p>Informuję klienta o przyczynie problemu i zakresie naprawy.</p>
+        </div>
+ <div class="step">
+          <div class="step-number">3</div>
+          <h4>Wycena naprawy</h4>
+          <p>Wyceniamy koszt naprawy informujemy.</p>
+        </div>
+        <div class="step">
+          <div class="step-number">4</div>
+          <h4>Naprawa i serwis</h4>
+          <p>Po akceptacji wykonuję czyszczenie, regulację lub naprawę.</p>
+        </div>
+       
+ <div class="step">
+          <div class="step-number">5</div>
+          <h4>Odesłanie sprzętu</h4>
+          <p>Maszynka wraca do klienta gotowa do pracy.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="wysylka">
+    <h3>Jak to działa</h3>
+    <p class="section-sub">
+      To tylko 3 proste kroki: nadaj przesyłkę, zgłoś naprawę i w razie pytań zadzwoń.
+    </p>
+
+    <div class="steps-box">
+      <div class="steps-grid">
+        <div class="step">
+          <div class="step-number">1</div>
+          <h4>Nadaj przesyłkę</h4>
+          <p>Zabezpiecz maszynkę i nadaj paczkę do paczkomatu lub punktu odbioru w Mirkowie.</p>
+        </div>
+
+        <div class="step">
+          <div class="step-number">2</div>
+          <h4>Zgłoś naprawę</h4>
+          <p>Po nadaniu paczki wypełnij formularz i podaj numer przesyłki, adres do zwrotu oraz opis problemu.</p>
+        </div>
+
+        <div class="step">
+          <div class="step-number">3</div>
+          <h4>Telefon</h4>
+          <p>Jeśli masz pytania dotyczące wysyłki lub naprawy, zadzwoń: +48 782 618 575.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h3>Dane do nadania przesyłki</h3>
+<p style="color:#ddd;">
+Maszynkę lub trymer najlepiej wysłać do paczkomatu albo punktu odbioru z obsługą przez Furgonetka.pl.
+</p>
+
+<p style="color:#ddd;">
+Wejdź na stronę Furgonetka.pl i uzupełnij:
+<br>– kod pocztowy nadawcy (Twój),
+<br>– kod pocztowy odbiorcy: 55-095,
+<br>– wymiary przesyłki,
+<br>– wybierz firmę kurierską.
+</p>
+
+<p style="color:#ddd;">
+Dostępne opcje:
+<br>– Paczkomaty: InPost, Orlen Paczka, DPD Pickup
+<br>– Punkt z obsługą: Sklep Żabka (DPD)
+</p>
+
+<p style="color:#ddd;">
+W sekcji „Nadanie” wybierz:
+<br>1) Sposób nadania – Automat lub Punkt z obsługą
+<br>2) Wybierz punkt:
+<br>&nbsp;&nbsp;&nbsp;– dla paczkomatów wpisz Nr paczkomatu lub adres
+<br>&nbsp;&nbsp;&nbsp;– dla punktu z obsługą wpisz adres (bez kodu punktu)
+<br>3) Pozostałe pola uzupełnij zgodnie z instrukcjami na stronie
+</p>
+     <p style="color:#ff4d4d;">
+Jeśli masz wątpliwości – zadzwoń, pomogę dobrać odpowiedni sposób wysyłki.
+</p>
+    
+
+    <div class="steps-box shipping-details">
+      <p><strong>Odbiorca:</strong> BarberSerwis</p>
+      <p><strong>Telefon:</strong> +48 782 618 575</p>
+
+      
+<p><strong>Paczkomaty:</strong><br> 
+<p><strong>InPost:</strong><br>
+Nr. Paczkomatu: MRK03M – ul. Sportowa 6, 55-095, Mirków</p>
+
+<p><strong>DPD Pickup:</strong><br>
+Nr. Paczkomatu: PL83482 – ul. Sportowa 6, 55-095, Mirków</p>
+
+<p><strong>Orlen Paczka:</strong><br>
+Nr. Paczkomatu: 328169 – ul. Sportowa 6, 55-095, Mirków</p>
+
+<p style="margin-top:15px; color:#bbb;">
+Jeśli system wymaga kodu punktu – wpisz powyższy numer.  
+Jeśli wymaga adresu – wpisz: ul. Sportowa 6, 55-095 Mirków.
+</p>
+      <p><strong>Punkt z obsługą DPD:</strong><br>
+      Sklep Żabka<br>
+      ul. Sportowa 2<br>
+      55-095 Mirków</p>
+
+      <div class="hero-buttons" style="margin-top: 24px;">
+        <button class="btn btn-gold" onclick="copyShipping()">Kopiuj dane do wysyłki</button>
+        <a class="btn btn-dark" href="https://furgonetka.pl" target="_blank" rel="noopener noreferrer">Nadaj przesyłkę</a>
+      </div>
+
+      <p class="shipping-note">
+        Po nadaniu paczki prześlij numer przesyłki w formularzu zgłoszenia lub wiadomości e-mail.
+      </p>
+    </div>
+  </section>
+
+  <section class="section" id="formularz">
+    <h3>Zgłoś naprawę</h3>
+    <p class="section-sub">
+      Po nadaniu przesyłki wypełnij formularz, aby przypisać paczkę do naprawy.
+    </p>
+
+    <div class="form-box">
+      <form onsubmit="submitRepair(event)">
+        <div class="form-row">
+          <input type="text" id="name" placeholder="Imię i nazwisko" required>
+          <input type="tel" id="phone" placeholder="Telefon" required>
+        </div>
+
+        <div class="form-row">
+          <input type="text" id="city" placeholder="Miasto">
+          <input type="text" id="model" placeholder="Model maszynki / trymera" required>
+        </div>
+
+        <div class="form-row">
+          <input type="text" id="tracking" placeholder="Numer przesyłki">
+        </div>
+
+        <p style="color:#bbb; text-align:center; margin: 6px 0 0;">
+          Podaj adres, na który ma zostać odesłana naprawiona maszynka.
+        </p>
+
+        <input type="text" id="returnAddress" placeholder="Adres do zwrotu (ulica i numer)" required>
+        <input type="text" id="returnCity" placeholder="Kod pocztowy" required>
+
+        <select id="issueType" required>
+          <option value="">Wybierz rodzaj problemu</option>
+          <option>Słabo tnie</option>
+          <option>Szarpie włosy</option>
+          <option>Nie włącza się</option>
+          <option>Problem z ostrzem</option>
+          <option>Problem po upadku</option>
+          <option>Naprawa elektroniki</option>
+          <option>Inny problem</option>
+        </select>
+
+        <textarea id="problem" placeholder="Opisz dokładnie problem z maszynką lub trymerem" required></textarea>
+
+        <label class="privacy-check"><input type="checkbox" id="privacyConsent" required><span>Zapoznałem/am się z <a href="polityka-prywatnosci.html" target="_blank">Polityką prywatności</a> i zasadami przetwarzania danych w związku ze zgłoszeniem serwisowym.</span></label>
+
+        <p style="font-size:13px; color:#bbb;">Zgłoszenie zostanie zapisane na Twoim koncie klienta. Musisz być zalogowany/a.</p>
+
+        <button class="btn btn-gold" type="submit" id="repairSubmitBtn">Wyślij zgłoszenie</button>
+      </form>
+
+      <div class="form-note">
+        Po wysłaniu zgłoszenie zostanie zapisane w systemie BarberSerwis i pojawi się w panelu „Moje naprawy”.
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="konto">
+    <h3>Panel klienta – moje naprawy</h3>
+    <p class="section-sub">Tutaj sprawdzisz swoje zgłoszenia, wycenę, numer przesyłki i aktualny etap naprawy.</p>
+    <div class="form-box">
+      <div class="account-bar">
+        <span class="account-status" id="accountStatus">Nie jesteś zalogowany/a.</span>
+        <button class="btn btn-gold" type="button" id="accountLoginBtn" onclick="openAccount()">Zaloguj / Załóż konto</button>
+        <button class="btn btn-dark hidden" type="button" id="accountRefreshBtn" onclick="loadRepairs()">Odśwież statusy</button>
+        <button class="btn btn-dark hidden" type="button" id="accountLogoutBtn" onclick="logoutClient()">Wyloguj</button>
+      </div>
+      <div id="repairsEmpty" class="form-note">Po zalogowaniu zobaczysz tutaj swoje zgłoszenia.</div>
+      <div id="repairsList" class="repairs-list"></div>
+      <p class="small-note">Statusy i wyceny są aktualizowane przez BarberSerwis po diagnozie sprzętu.</p>
+    </div>
+  </section>
+
+  <section class="section" id="kontakt">
+    <h3>Kontakt</h3>
+    <p class="section-sub">
+      Serwis maszynek do strzyżenia i trymerów – obsługa wysyłkowa na terenie całej Polski.
+    </p>
+
+    <div class="contact-grid">
+      <div class="contact-box">
+        <h4>BarberSerwis.com</h4>
+        <p>📍 Obsługa wysyłkowa – cała Polska</p>
+        <p>📞 <a href="tel:+48782618575" style="color:#e0b36a;">+48 782 618 575</a></p>
+        <p>📧 <a href="mailto:hypnosis@barberserwis.com" style="color:#e0b36a;">hypnosis@barberserwis.com</a></p>
+        <p>📦 Paczkomaty: ul. Sportowa 6, 55-095 Mirków</p>
+        <p>🏪 Punkt odbioru: Żabka, ul. Sportowa 2, 55-095 Mirków</p>
+        <p>Na życzenie klienta możliwość wystawienia faktury VAT.</p>
+      </div>
+
+      <div class="map-box">
+        <iframe
+          src="https://www.google.com/maps?q=Sportowa%206,%2055-095%20Mirk%C3%B3w&output=embed"
+          loading="lazy">
+        </iframe>
+      </div>
+    </div>
+  </section>
+
+  <div class="auth-modal" id="authModal" aria-hidden="true"><div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="authTitle"><button class="auth-close" type="button" onclick="closeAccount()" aria-label="Zamknij">×</button><h3 id="authTitle" style="margin:0;color:#e0b36a;">Konto klienta</h3><p style="color:#bbb;margin:8px 0 0;">Zaloguj się albo utwórz konto, aby wysyłać i śledzić zgłoszenia.</p><div class="auth-tabs"><button class="auth-tab active" id="loginTab" type="button" onclick="showAuthPane('login')">Logowanie</button><button class="auth-tab" id="registerTab" type="button" onclick="showAuthPane('register')">Rejestracja</button></div><div class="auth-pane active" id="loginPane"><input type="email" id="loginEmail" placeholder="E-mail" autocomplete="email"><input type="password" id="loginPassword" placeholder="Hasło" autocomplete="current-password"><button class="btn btn-gold" style="width:100%;margin-top:8px;" type="button" onclick="loginClient()">Zaloguj</button></div><div class="auth-pane" id="registerPane"><input type="email" id="registerEmail" placeholder="E-mail" autocomplete="email"><input type="password" id="registerPassword" placeholder="Hasło (minimum 8 znaków)" autocomplete="new-password"><input type="password" id="registerPassword2" placeholder="Powtórz hasło" autocomplete="new-password"><button class="btn btn-gold" style="width:100%;margin-top:8px;" type="button" onclick="registerClient()">Załóż konto</button><p style="font-size:12px;color:#999;line-height:1.5;">Po rejestracji otrzymasz wiadomość z linkiem potwierdzającym adres e-mail.</p></div><div class="auth-message" id="authMessage"></div></div></div>
+
+  <footer>
+    © 2026 BarberSerwis.com – Naprawa maszynek do strzyżenia i trymerów<br><a href="regulamin.html" style="color:#cbb79c;">Regulamin</a> • <a href="polityka-prywatnosci.html" style="color:#cbb79c;">Polityka prywatności</a>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = "https://smimabuumtdjkymxpheq.supabase.co";
+    const SUPABASE_PUBLIC_KEY = "sb_publishable_hv64LFqZTVbVk6Tza29s9w_dXytRVyr"; // publiczny klucz Supabase
+    let sb=null,currentUser=null;
+    function supabaseConfigured(){return SUPABASE_URL.startsWith("https://")&&!SUPABASE_PUBLIC_KEY.startsWith("WKLEJ_")}
+    function getSb(){if(!supabaseConfigured())return null;if(!sb)sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLIC_KEY);return sb}
+    function setAuthMessage(m,t=""){const e=document.getElementById("authMessage");e.textContent=m||"";e.className="auth-message"+(t?" "+t:"")}
+    function openAccount(){document.getElementById("authModal").classList.add("open");document.getElementById("authModal").setAttribute("aria-hidden","false");setAuthMessage(supabaseConfigured()?"":"Połączenie z Supabase nie jest jeszcze skonfigurowane.",supabaseConfigured()?"":"err")}
+    function closeAccount(){document.getElementById("authModal").classList.remove("open");document.getElementById("authModal").setAttribute("aria-hidden","true")}
+    function showAuthPane(w){const l=w==="login";document.getElementById("loginPane").classList.toggle("active",l);document.getElementById("registerPane").classList.toggle("active",!l);document.getElementById("loginTab").classList.toggle("active",l);document.getElementById("registerTab").classList.toggle("active",!l);setAuthMessage("")}
+    async function registerClient(){const c=getSb();if(!c)return setAuthMessage("Najpierw trzeba podłączyć projekt Supabase.","err");const email=document.getElementById("registerEmail").value.trim(),p=document.getElementById("registerPassword").value,p2=document.getElementById("registerPassword2").value;if(!email)return setAuthMessage("Podaj adres e-mail.","err");if(p.length<8)return setAuthMessage("Hasło musi mieć co najmniej 8 znaków.","err");if(p!==p2)return setAuthMessage("Hasła nie są takie same.","err");setAuthMessage("Tworzę konto…");const {data,error}=await c.auth.signUp({email,password:p,options:{emailRedirectTo:window.location.origin+window.location.pathname}});if(error)return setAuthMessage(error.message,"err");setAuthMessage(data.session?"Konto utworzone i zalogowano.":"Konto utworzone. Sprawdź e-mail i kliknij link potwierdzający.","ok");if(data.session)setTimeout(closeAccount,700)}
+    async function loginClient(){const c=getSb();if(!c)return setAuthMessage("Najpierw trzeba podłączyć projekt Supabase.","err");const email=document.getElementById("loginEmail").value.trim(),password=document.getElementById("loginPassword").value;if(!email||!password)return setAuthMessage("Podaj e-mail i hasło.","err");setAuthMessage("Logowanie…");const {error}=await c.auth.signInWithPassword({email,password});if(error)return setAuthMessage("Nie udało się zalogować. Sprawdź e-mail, hasło i potwierdzenie konta.","err");setAuthMessage("Zalogowano.","ok");setTimeout(closeAccount,500)}
+    async function logoutClient(){const c=getSb();if(c)await c.auth.signOut()}
+    function updateAccountUi(u){currentUser=u||null;const l=!!currentUser;document.getElementById("accountStatus").textContent=l?"Zalogowano: "+(currentUser.email||"konto klienta"):"Nie jesteś zalogowany/a.";document.getElementById("accountLoginBtn").classList.toggle("hidden",l);document.getElementById("accountLogoutBtn").classList.toggle("hidden",!l);document.getElementById("accountRefreshBtn").classList.toggle("hidden",!l);const b=document.getElementById("accountOpenBtn");b.textContent=l?"Moje naprawy":"Konto klienta";b.onclick=l?()=>document.getElementById("konto").scrollIntoView({behavior:"smooth"}):openAccount;if(l)loadRepairs();else{document.getElementById("repairsList").innerHTML="";document.getElementById("repairsEmpty").textContent="Po zalogowaniu zobaczysz tutaj swoje zgłoszenia."}}
+    function statusRank(status){const s=String(status||"").toLowerCase();if(s.includes("odesł")||s.includes("wysłan"))return 6;if(s.includes("gotow"))return 5;if(s.includes("napraw"))return 4;if(s.includes("akcept"))return 3;if(s.includes("wycen")||s.includes("diagno"))return 2;if(s.includes("odebran")||s.includes("przyję"))return 1;return 0}
     async function loadRepairs(){const c=getSb();if(!c||!currentUser)return;const e=document.getElementById("repairsEmpty"),l=document.getElementById("repairsList");e.textContent="Ładowanie zgłoszeń…";l.innerHTML="";const {data,error}=await c.from("repairs").select("ticket_no,model,status,quote_amount,tracking,created_at,issue_type,problem,admin_note,return_city").order("created_at",{ascending:false});if(error){e.textContent="Nie udało się pobrać zgłoszeń: "+error.message;return}if(!data?.length){
   e.textContent="Nie masz jeszcze żadnych zgłoszeń.";
   l.innerHTML="";
