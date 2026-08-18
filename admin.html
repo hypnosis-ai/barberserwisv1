@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel Serwisu – BarberSerwis</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#2b1b10;color:#f5f5f5}
+    .wrap{max-width:1180px;margin:0 auto;padding:28px 18px 60px}
+    h1{color:#e9b45e;margin:0 0 8px;text-align:center}
+    .sub{color:#c8c8c8;text-align:center;margin:0 0 26px}
+    .panel,.repair{background:#18191f;border:1px solid #2e3038;border-radius:16px;padding:20px;margin-bottom:18px}
+    .login-row,.top-row,.grid{display:grid;gap:12px}
+    .login-row{grid-template-columns:1fr 1fr auto}
+    .top-row{grid-template-columns:1fr auto auto;align-items:center}
+    .grid{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px}
+    input,textarea,select{width:100%;background:#202129;color:#fff;border:1px solid #3a3c46;border-radius:9px;padding:11px 12px;font:inherit}
+    textarea{min-height:95px;resize:vertical}
+    label{font-size:12px;color:#c6c6c6;display:block;margin-bottom:5px}
+    button{border:0;border-radius:9px;padding:11px 16px;font-weight:700;cursor:pointer}
+    .gold{background:#e9b45e;color:#17120b}
+    .dark{background:#262832;color:#fff;border:1px solid #3a3c46}
+    .danger{background:#5f2b2b;color:#fff}
+    .ticket{font-weight:800;color:#e9b45e;font-size:17px}
+    .muted{color:#a8a8aa;font-size:13px}
+    .status-pill{display:inline-block;background:#292b35;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700}
+    .decision-ok{color:#7fd59a}.decision-no{color:#ff9a9a}
+    .msg{margin-top:10px;font-size:14px}
+    .hidden{display:none}
+    .repair-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:15px}
+    .client-info{line-height:1.7;margin-top:10px}
+    @media(max-width:760px){
+      .login-row,.top-row,.grid{grid-template-columns:1fr}
+      .repair-head{align-items:flex-start;flex-direction:column}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Panel Serwisu – BarberSerwis</h1>
+  <p class="sub">Obsługa zgłoszeń, wycen, statusów i informacji dla klienta.</p>
+
+  <div class="panel" id="loginPanel">
+    <div class="login-row">
+      <input type="email" id="adminEmail" placeholder="E-mail administratora">
+      <input type="password" id="adminPassword" placeholder="Hasło">
+      <button class="gold" onclick="adminLogin()">Zaloguj</button>
+    </div>
+    <div id="loginMsg" class="msg"></div>
+  </div>
+
+  <div class="panel hidden" id="adminPanel">
+    <div class="top-row">
+      <div id="adminStatus">Zalogowano</div>
+      <button class="dark" onclick="loadAllRepairs()">Odśwież zgłoszenia</button>
+      <button class="dark" onclick="adminLogout()">Wyloguj</button>
+    </div>
+  </div>
+
+  <div id="repairs"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = "https://smimabuumtdjkymxpheq.supabase.co";
+const SUPABASE_PUBLIC_KEY = "sb_publishable_hv64LFqZTVbVk6Tza29s9w_dXytRVyr";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
+
+function esc(v){
+  return String(v ?? "").replace(/[&<>'"]/g, ch => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"
+  })[ch]);
+}
+
+function decisionText(v){
+  if(v==="accepted") return '<span class="decision-ok">Zaakceptowana ✅</span>';
+  if(v==="rejected") return '<span class="decision-no">Odrzucona ❌</span>';
+  return "Brak decyzji";
+}
+
+async function adminLogin(){
+  const email=document.getElementById("adminEmail").value.trim();
+  const password=document.getElementById("adminPassword").value;
+  const m=document.getElementById("loginMsg");
+  m.textContent="Logowanie…";
+  const {error}=await sb.auth.signInWithPassword({email,password});
+  if(error){m.textContent="Nie udało się zalogować: "+error.message;return;}
+  m.textContent="";
+  await checkSession();
+}
+
+async function adminLogout(){
+  await sb.auth.signOut();
+  document.getElementById("repairs").innerHTML="";
+  await checkSession();
+}
+
+async function checkSession(){
+  const {data}=await sb.auth.getSession();
+  const user=data?.session?.user || null;
+  document.getElementById("loginPanel").classList.toggle("hidden",!!user);
+  document.getElementById("adminPanel").classList.toggle("hidden",!user);
+  if(user){
+    document.getElementById("adminStatus").textContent="Zalogowano: "+user.email;
+    await loadAllRepairs();
+  }
+}
+
+async function loadAllRepairs(){
+  const box=document.getElementById("repairs");
+  box.innerHTML='<div class="panel">Ładowanie zgłoszeń…</div>';
+
+  const {data,error}=await sb.rpc("admin_list_repairs");
+  if(error){
+    box.innerHTML='<div class="panel">Brak dostępu do panelu administratora albo błąd: '+esc(error.message)+'</div>';
+    return;
+  }
+
+  if(!data?.length){
+    box.innerHTML='<div class="panel">Brak zgłoszeń.</div>';
+    return;
+  }
+
+  box.innerHTML="";
+  data.forEach(r=>{
+    const div=document.createElement("div");
+    div.className="repair";
+    const created=r.created_at ? new Date(r.created_at).toLocaleString("pl-PL") : "—";
+    div.innerHTML=`
+      <div class="repair-head">
+        <div>
+          <div class="ticket">${esc(r.ticket_no)}</div>
+          <div class="muted">Zgłoszono: ${created}</div>
+        </div>
+        <span class="status-pill">${esc(r.status || "Nowe zgłoszenie")}</span>
+      </div>
+
+      <div class="client-info">
+        <strong>Klient:</strong> ${esc(r.name)}<br>
+        <strong>Telefon:</strong> ${esc(r.phone)} &nbsp; | &nbsp; <strong>E-mail:</strong> ${esc(r.email)}<br>
+        <strong>Model:</strong> ${esc(r.model)}<br>
+        <strong>Problem:</strong> ${esc(r.issue_type || "—")} – ${esc(r.problem || "—")}<br>
+        <strong>Adres zwrotny:</strong> ${esc(r.return_address || "—")}, ${esc(r.return_city || "—")}<br>
+        <strong>Decyzja wyceny:</strong> ${decisionText(r.quote_decision)}
+      </div>
+
+      <div class="grid">
+        <div>
+          <label>Status</label>
+          <select id="status-${r.id}">
+            ${["Nowe zgłoszenie","Przyjęto","Diagnoza / wycena","Akceptacja","Naprawa","Gotowe","Odesłano"]
+              .map(s=>`<option ${s===r.status?'selected':''}>${s}</option>`).join("")}
+          </select>
+        </div>
+        <div>
+          <label>Wycena (zł)</label>
+          <input id="quote-${r.id}" type="number" min="0" step="0.01" value="${r.quote_amount ?? ""}" placeholder="np. 180">
+        </div>
+        <div>
+          <label>Numer przesyłki</label>
+          <input id="tracking-${r.id}" value="${esc(r.tracking || "")}" placeholder="Numer przesyłki">
+        </div>
+        <div>
+          <label>Informacja dla klienta</label>
+          <textarea id="note-${r.id}" placeholder="Np. Wymagana wymiana silnika">${esc(r.admin_note || "")}</textarea>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="gold" onclick="saveRepair('${r.id}')">Zapisz zmiany</button>
+        <button class="dark" onclick="setQuickStatus('${r.id}','Naprawa')">Ustaw: Naprawa</button>
+        <button class="dark" onclick="setQuickStatus('${r.id}','Gotowe')">Ustaw: Gotowe</button>
+        <button class="dark" onclick="setQuickStatus('${r.id}','Odesłano')">Ustaw: Odesłano</button>
+      </div>
+      <div class="msg" id="msg-${r.id}"></div>
+    `;
+    box.appendChild(div);
+  });
+}
+
+async function saveRepair(id){
+  const status=document.getElementById("status-"+id).value;
+  const qRaw=document.getElementById("quote-"+id).value.trim();
+  const quote=qRaw==="" ? null : Number(qRaw);
+  const note=document.getElementById("note-"+id).value.trim() || null;
+  const tracking=document.getElementById("tracking-"+id).value.trim() || null;
+  const msg=document.getElementById("msg-"+id);
+  msg.textContent="Zapisywanie…";
+
+  const {error}=await sb.rpc("admin_update_repair",{
+    p_id:id,
+    p_status:status,
+    p_quote_amount:quote,
+    p_admin_note:note,
+    p_tracking:tracking
+  });
+
+  if(error){msg.textContent="Błąd: "+error.message;return;}
+  msg.textContent="Zapisano ✅";
+  setTimeout(loadAllRepairs,500);
+}
+
+async function setQuickStatus(id,status){
+  document.getElementById("status-"+id).value=status;
+  await saveRepair(id);
+}
+
+sb.auth.onAuthStateChange(()=>checkSession());
+window.addEventListener("DOMContentLoaded",checkSession);
+</script>
+</body>
+</html>
