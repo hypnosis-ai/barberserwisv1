@@ -907,7 +907,55 @@ Jeśli wymaga adresu – wpisz: ul. Sportowa 6, 55-095 Mirków.
     function updateAccountUi(u){currentUser=u||null;const l=!!currentUser;document.getElementById("accountStatus").textContent=l?"Zalogowano: "+(currentUser.email||"konto klienta"):"Nie jesteś zalogowany/a.";document.getElementById("accountLoginBtn").classList.toggle("hidden",l);document.getElementById("accountLogoutBtn").classList.toggle("hidden",!l);document.getElementById("accountRefreshBtn").classList.toggle("hidden",!l);const b=document.getElementById("accountOpenBtn");b.textContent=l?"Moje naprawy":"Konto klienta";b.onclick=l?()=>document.getElementById("konto").scrollIntoView({behavior:"smooth"}):openAccount;if(l)loadRepairs();else{document.getElementById("repairsList").innerHTML="";document.getElementById("repairsEmpty").textContent="Po zalogowaniu zobaczysz tutaj swoje zgłoszenia."}}
     function statusRank(status){const s=String(status||"").toLowerCase();if(s.includes("odesł")||s.includes("wysłan"))return 6;if(s.includes("gotow"))return 5;if(s.includes("napraw"))return 4;if(s.includes("akcept"))return 3;if(s.includes("wycen")||s.includes("diagno"))return 2;if(s.includes("odebran")||s.includes("przyję"))return 1;return 0}
     async function loadRepairs(){const c=getSb();if(!c||!currentUser)return;const e=document.getElementById("repairsEmpty"),l=document.getElementById("repairsList");e.textContent="Ładowanie zgłoszeń…";l.innerHTML="";const {data,error}=await c.from("repairs").select("ticket_no,model,status,quote_amount,tracking,created_at,issue_type,problem,admin_note,return_city").order("created_at",{ascending:false});if(error){e.textContent="Nie udało się pobrać zgłoszeń: "+error.message;return}if(!data?.length){e.textContent="Nie masz jeszcze żadnych zgłoszeń.";return}e.textContent="";const steps=["Zgłoszenie","Przyjęto","Diagnoza / wycena","Akceptacja","Naprawa","Gotowe","Odesłano"];data.forEach(r=>{const i=document.createElement("div");i.className="repair-item";const d=new Date(r.created_at).toLocaleString("pl-PL"),q=r.quote_amount!=null?Number(r.quote_amount).toFixed(2)+" zł":"—",t=r.tracking?escapeHtml(r.tracking):"—",rank=statusRank(r.status);const progress=steps.map((x,idx)=>`<span class="status-step ${idx<=rank?'done':''}">${escapeHtml(x)}</span>`).join("");i.innerHTML=`<div class="repair-head"><span class="repair-ticket">${escapeHtml(r.ticket_no)}</span><span class="repair-status">${escapeHtml(r.status||"Nowe zgłoszenie")}</span></div><div class="repair-meta">${escapeHtml(r.model)} • zgłoszono ${d}</div><div class="status-steps">${progress}</div><div class="repair-details"><div><strong>Rodzaj problemu:</strong> ${escapeHtml(r.issue_type||"—")}</div><div><strong>Opis:</strong> ${escapeHtml(r.problem||"—")}</div><div><strong>Wycena:</strong> ${q}</div><div><strong>Numer przesyłki:</strong> ${t}</div><div><strong>Miasto zwrotu:</strong> ${escapeHtml(r.return_city||"—")}</div>${r.admin_note?`<div><strong>Informacja z serwisu:</strong> ${escapeHtml(r.admin_note)}</div>`:""}</div>`;l.appendChild(i)})}
-    async function submitRepair(e){e.preventDefault();const c=getSb();if(!c){openAccount();return setAuthMessage("Najpierw trzeba podłączyć projekt Supabase.","err")}const {data:u}=await c.auth.getUser(),user=u?.user;if(!user){openAccount();return setAuthMessage("Zaloguj się lub załóż konto, aby wysłać zgłoszenie.","err")}const b=document.getElementById("repairSubmitBtn");b.disabled=true;b.textContent="Wysyłanie…";const payload={user_id:user.id,name:name.value.trim(),phone:phone.value.trim(),email:user.email,city:city.value.trim()||null,model:model.value.trim(),tracking:tracking.value.trim()||null,return_address:returnAddress.value.trim(),return_city:returnCity.value.trim(),issue_type:issueType.value,problem:problem.value.trim()};const {data,error}=await c.from("repairs").insert(payload).select("ticket_no").single();b.disabled=false;b.textContent="Wyślij zgłoszenie";if(error)return alert("Nie udało się zapisać zgłoszenia: "+error.message);alert("Zgłoszenie zapisane. Numer: "+data.ticket_no);e.target.reset();await loadRepairs();document.getElementById("konto").scrollIntoView({behavior:"smooth"})}
+    async function submitRepair(e){
+      e.preventDefault();
+      const c=getSb();
+      if(!c){
+        openAccount();
+        return setAuthMessage("Najpierw trzeba podłączyć projekt Supabase.","err");
+      }
+
+      const {data:u,error:userError}=await c.auth.getUser();
+      const user=u?.user;
+      if(userError||!user){
+        openAccount();
+        return setAuthMessage("Zaloguj się lub załóż konto, aby wysłać zgłoszenie.","err");
+      }
+
+      const b=document.getElementById("repairSubmitBtn");
+      b.disabled=true;
+      b.textContent="Wysyłanie…";
+
+      try{
+        const payload={
+          user_id:user.id,
+          name:document.getElementById("name").value.trim(),
+          phone:document.getElementById("phone").value.trim(),
+          email:user.email,
+          city:document.getElementById("city").value.trim()||null,
+          model:document.getElementById("model").value.trim(),
+          tracking:document.getElementById("tracking").value.trim()||null,
+          return_address:document.getElementById("returnAddress").value.trim(),
+          return_city:document.getElementById("returnCity").value.trim(),
+          issue_type:document.getElementById("issueType").value,
+          problem:document.getElementById("problem").value.trim()
+        };
+
+        const {data,error}=await c.from("repairs").insert(payload).select("ticket_no").single();
+        if(error) throw error;
+
+        alert("Zgłoszenie zapisane. Numer: "+data.ticket_no);
+        e.target.reset();
+        await loadRepairs();
+        document.getElementById("konto").scrollIntoView({behavior:"smooth"});
+      }catch(err){
+        console.error("Błąd zapisu zgłoszenia:",err);
+        alert("Nie udało się zapisać zgłoszenia: "+(err?.message||"nieznany błąd"));
+      }finally{
+        b.disabled=false;
+        b.textContent="Wyślij zgłoszenie";
+      }
+    }
     function escapeHtml(v){return String(v??"").replace(/[&<>'"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[ch])}
     function copyShipping(){const text="Odbiorca: BarberSerwis\nTelefon: +48 782 618 575\nAdres odbioru przesyłek: ul. Sportowa 6, 55-095 Mirków\nInPost: MRK03M\nDPD Pickup: PL83482\nOrlen Paczka: 328169\nPunkt z obsługą DPD: Żabka, ul. Sportowa 2/1, 55-095 Mirków";navigator.clipboard.writeText(text);alert("Dane do wysyłki zostały skopiowane.")}
     document.getElementById("authModal").addEventListener("click",e=>{if(e.target.id==="authModal")closeAccount()});
