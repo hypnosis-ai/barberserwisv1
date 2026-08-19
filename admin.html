@@ -312,7 +312,18 @@
         flex-direction:column
       }
     }
-  </style>
+  
+    .invoice-admin-box{
+      margin-top:12px;
+      padding:12px 14px;
+      background:#202129;
+      border:1px solid #343640;
+      border-radius:10px;
+      line-height:1.65;
+    }
+    .invoice-admin-yes{color:#86e6a4;font-weight:800}
+    .invoice-admin-no{color:#aaa;font-weight:700}
+</style>
 </head>
 
 <body>
@@ -907,7 +918,12 @@ function applyFilters(){
           ]),
           r.return_address,
           r.return_city,
-          r.tracking
+          r.tracking,
+          r.invoice_company_name,
+          r.invoice_nip,
+          r.invoice_address,
+          r.invoice_postal_code,
+          r.invoice_city
         ]
         .join(" ")
         .toLowerCase();
@@ -1004,6 +1020,23 @@ function renderRepairs(data){
 
 
     const items = Array.isArray(r.items) ? r.items : [];
+
+    const invoiceHtml = r.wants_invoice
+      ? `
+        <div class="invoice-admin-box">
+          <div class="invoice-admin-yes">Faktura VAT: TAK</div>
+          <strong>Nazwa firmy:</strong> ${esc(r.invoice_company_name || "—")}<br>
+          <strong>NIP:</strong> ${esc(r.invoice_nip || "—")}<br>
+          <strong>Adres firmy:</strong> ${esc(r.invoice_address || "—")}<br>
+          <strong>Kod pocztowy:</strong> ${esc(r.invoice_postal_code || "—")}<br>
+          <strong>Miasto:</strong> ${esc(r.invoice_city || "—")}
+        </div>
+      `
+      : `
+        <div class="invoice-admin-box">
+          <span class="invoice-admin-no">Faktura VAT: NIE</span>
+        </div>
+      `;
 
     const itemsHtml = items.length
       ? `
@@ -1177,6 +1210,8 @@ function renderRepairs(data){
         ${decisionText(r.quote_decision)}
 
       </div>
+
+      ${invoiceHtml}
 
       ${itemsHtml}
 
