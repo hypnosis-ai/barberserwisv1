@@ -509,7 +509,26 @@
     .auth-card input{width:100%;padding:14px;margin:7px 0;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:#202028;color:#fff;font:inherit}.auth-message{margin-top:12px;font-size:14px;line-height:1.5}.auth-message.ok{color:#9fe0a8}.auth-message.err{color:#ff8b8b}
     .account-bar{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:center;margin:0 auto 24px}.account-status{color:#d2c6b6;font-size:14px}.repairs-list{display:grid;gap:16px;margin-top:22px}.repair-item{background:#202028;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:18px}.repair-head{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;align-items:center}.repair-ticket{color:#e0b36a;font-weight:700}.repair-status{color:#fff;font-weight:700;background:#2c2c36;border-radius:999px;padding:6px 10px;font-size:13px}.repair-meta{color:#bbb;font-size:14px;margin-top:8px}.repair-details{margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.07);display:grid;gap:8px;color:#d8d8d8;font-size:14px}.repair-details strong{color:#f0c988}.status-steps{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.status-step{font-size:12px;padding:6px 9px;border-radius:999px;background:#2b2b34;color:#888;border:1px solid rgba(255,255,255,.05)}.status-step.done{background:rgba(224,179,106,.13);color:#f0c988;border-color:rgba(224,179,106,.3)}.panel-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px}.small-note{font-size:12px;color:#999;margin-top:10px}
     .privacy-check{display:flex;align-items:flex-start;gap:9px;color:#bbb;font-size:13px;line-height:1.45;margin:4px 0 2px;text-align:left}.privacy-check input{width:auto;margin-top:3px}.privacy-check a{color:#e0b36a;text-decoration:underline}
-  </style>
+  if(document.readyState === "loading"){
+  document.addEventListener(
+    "DOMContentLoaded",
+    () => {
+      if(
+        document.getElementById("repairDevices") &&
+        !document.querySelector("#repairDevices .repair-device")
+      ){
+        addRepairDevice();
+      }
+    }
+  );
+}else{
+  if(
+    document.getElementById("repairDevices") &&
+    !document.querySelector("#repairDevices .repair-device")
+  ){
+    addRepairDevice();
+  }
+}</style>
   <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18034553646">
 </script>
@@ -787,60 +806,6 @@ Jeśli wymaga adresu – wpisz: ul. Sportowa 6, 55-095 Mirków.
     </div>
   </section>
 
-  <section class="section" id="formularz">
-    <h3>Zgłoś naprawę</h3>
-    <p class="section-sub">
-      Po nadaniu przesyłki wypełnij formularz, aby przypisać paczkę do naprawy.
-    </p>
-
-    <div class="form-box">
-      <form onsubmit="submitRepair(event)">
-        <div class="form-row">
-          <input type="text" id="name" placeholder="Imię i nazwisko" required>
-          <input type="tel" id="phone" placeholder="Telefon" required>
-        </div>
-
-        <div class="form-row">
-          <input type="text" id="city" placeholder="Miasto">
-          <input type="text" id="model" placeholder="Model maszynki / trymera" required>
-        </div>
-
-        <div class="form-row">
-          <input type="text" id="tracking" placeholder="Numer przesyłki">
-        </div>
-
-        <p style="color:#bbb; text-align:center; margin: 6px 0 0;">
-          Podaj adres, na który ma zostać odesłana naprawiona maszynka.
-        </p>
-
-        <input type="text" id="returnAddress" placeholder="Adres do zwrotu (ulica i numer)" required>
-        <input type="text" id="returnCity" placeholder="Kod pocztowy" required>
-
-        <select id="issueType" required>
-          <option value="">Wybierz rodzaj problemu</option>
-          <option>Słabo tnie</option>
-          <option>Szarpie włosy</option>
-          <option>Nie włącza się</option>
-          <option>Problem z ostrzem</option>
-          <option>Problem po upadku</option>
-          <option>Naprawa elektroniki</option>
-          <option>Inny problem</option>
-        </select>
-
-        <textarea id="problem" placeholder="Opisz dokładnie problem z maszynką lub trymerem" required></textarea>
-
-        <label class="privacy-check"><input type="checkbox" id="privacyConsent" required><span>Zapoznałem/am się z <a href="polityka-prywatnosci.html" target="_blank">Polityką prywatności</a> i zasadami przetwarzania danych w związku ze zgłoszeniem serwisowym.</span></label>
-
-        <p style="font-size:13px; color:#bbb;">Zgłoszenie zostanie zapisane na Twoim koncie klienta. Musisz być zalogowany/a.</p>
-
-        <button class="btn btn-gold" type="submit" id="repairSubmitBtn">Wyślij zgłoszenie</button>
-      </form>
-
-      <div class="form-note">
-        Po wysłaniu zgłoszenie zostanie zapisane w systemie BarberSerwis i pojawi się w panelu „Moje naprawy”.
-      </div>
-    </div>
-  </section>
 
   <section class="section" id="konto">
     <h3>Panel klienta – moje naprawy</h3>
@@ -1017,61 +982,266 @@ Jeśli wymaga adresu – wpisz: ul. Sportowa 6, 55-095 Mirków.
       alert(accepted ? "Wycena została zaakceptowana." : "Wycena została odrzucona.");
       await loadRepairs();
     }
+let repairDeviceCounter = 0;
 
-    async function submitRepair(e){
-      e.preventDefault();
-      const c=getSb();
-      if(!c){
-        openAccount();
-        return setAuthMessage("Najpierw trzeba podłączyć projekt Supabase.","err");
-      }
+function deviceProblemOptions(){
+  return `
+    <option value="">Wybierz rodzaj problemu</option>
+    <option>Słabo tnie</option>
+    <option>Szarpie włosy</option>
+    <option>Nie włącza się</option>
+    <option>Problem z ostrzem</option>
+    <option>Problem po upadku</option>
+    <option>Naprawa elektroniki</option>
+    <option>Inny problem</option>
+  `;
+}
 
-      const {data:u,error:userError}=await c.auth.getUser();
-      const user=u?.user;
-      if(userError||!user){
-        openAccount();
-        return setAuthMessage("Zaloguj się lub załóż konto, aby wysłać zgłoszenie.","err");
-      }
+function addRepairDevice(){
+  const box = document.getElementById("repairDevices");
+  const current = box.querySelectorAll(".repair-device").length;
 
-      const b=document.getElementById("repairSubmitBtn");
-      b.disabled=true;
-      b.textContent="Wysyłanie…";
+  if(current >= 20){
+    alert("Możesz dodać maksymalnie 20 sprzętów do jednego zgłoszenia.");
+    return;
+  }
 
-      try{
-        const payload={
-          user_id:user.id,
-          name:document.getElementById("name").value.trim(),
-          phone:document.getElementById("phone").value.trim(),
-          email:user.email,
-          city:document.getElementById("city").value.trim()||null,
-          model:document.getElementById("model").value.trim(),
-          tracking:document.getElementById("tracking").value.trim()||null,
-          return_address:document.getElementById("returnAddress").value.trim(),
-          return_city:document.getElementById("returnCity").value.trim(),
-          issue_type:document.getElementById("issueType").value,
-          problem:document.getElementById("problem").value.trim()
-        };
+  repairDeviceCounter++;
 
-        const {data,error}=await c.from("repairs").insert(payload).select("ticket_no").single();
-        if(error) throw error;
+  const div = document.createElement("div");
+  div.className = "repair-device";
 
-        alert("Zgłoszenie zapisane. Numer: "+data.ticket_no);
-        e.target.reset();
-        await loadRepairs();
-        document.getElementById("konto").scrollIntoView({behavior:"smooth"});
-      }catch(err){
-        console.error("Błąd zapisu zgłoszenia:",err);
-        alert("Nie udało się zapisać zgłoszenia: "+(err?.message||"nieznany błąd"));
-      }finally{
-        b.disabled=false;
-        b.textContent="Wyślij zgłoszenie";
-      }
+  div.innerHTML = `
+    <div class="repair-device-head">
+      <div class="repair-device-title">Sprzęt</div>
+      <button
+        type="button"
+        class="remove-device"
+        onclick="removeRepairDevice(this)"
+      >
+        Usuń
+      </button>
+    </div>
+
+    <input
+      type="text"
+      class="device-model"
+      placeholder="Model maszynki / trymera"
+      required
+    >
+
+    <select
+      class="device-issue"
+      required
+      style="margin-top:12px;"
+    >
+      ${deviceProblemOptions()}
+    </select>
+
+    <textarea
+      class="device-problem"
+      placeholder="Opisz dokładnie problem z tym sprzętem"
+      required
+      style="margin-top:12px;"
+    ></textarea>
+  `;
+
+  box.appendChild(div);
+  updateDeviceNumbers();
+}
+
+function removeRepairDevice(button){
+  const box = document.getElementById("repairDevices");
+  const devices = box.querySelectorAll(".repair-device");
+
+  if(devices.length <= 1){
+    alert("Zgłoszenie musi zawierać przynajmniej jeden sprzęt.");
+    return;
+  }
+
+  button.closest(".repair-device").remove();
+  updateDeviceNumbers();
+}
+
+function updateDeviceNumbers(){
+  const devices =
+    document.querySelectorAll("#repairDevices .repair-device");
+
+  devices.forEach((device,index)=>{
+    const title = device.querySelector(".repair-device-title");
+    title.textContent = "Sprzęt " + (index + 1);
+  });
+
+  document.getElementById("deviceCount").textContent =
+    "Liczba sprzętów: " + devices.length;
+}
+
+function getRepairDevices(){
+  return Array.from(
+    document.querySelectorAll("#repairDevices .repair-device")
+  ).map(device => ({
+    model: device.querySelector(".device-model").value.trim(),
+    issue_type: device.querySelector(".device-issue").value,
+    problem: device.querySelector(".device-problem").value.trim()
+  }));
+}
+
+function resetRepairDevices(){
+  document.getElementById("repairDevices").innerHTML = "";
+  repairDeviceCounter = 0;
+  addRepairDevice();
+}
+  async function submitRepair(e){
+
+  e.preventDefault();
+
+  const c = getSb();
+
+  if(!c){
+    openAccount();
+    return setAuthMessage(
+      "Najpierw trzeba podłączyć projekt Supabase.",
+      "err"
+    );
+  }
+
+  const {data:u,error:userError} =
+    await c.auth.getUser();
+
+  const user = u?.user;
+
+  if(userError || !user){
+    openAccount();
+    return setAuthMessage(
+      "Zaloguj się lub załóż konto, aby wysłać zgłoszenie.",
+      "err"
+    );
+  }
+
+  const items = getRepairDevices();
+
+  if(!items.length){
+    alert("Dodaj przynajmniej jeden sprzęt.");
+    return;
+  }
+
+  const invalidItem = items.find(item =>
+    !item.model ||
+    !item.issue_type ||
+    !item.problem
+  );
+
+  if(invalidItem){
+    alert(
+      "Uzupełnij model, rodzaj problemu i opis dla każdego sprzętu."
+    );
+    return;
+  }
+
+  const b =
+    document.getElementById("repairSubmitBtn");
+
+  b.disabled = true;
+  b.textContent = "Wysyłanie…";
+
+  try{
+
+    const {data,error} =
+      await c.rpc(
+        "create_repair_with_items",
+        {
+          p_name:
+            document.getElementById("name").value.trim(),
+
+          p_phone:
+            document.getElementById("phone").value.trim(),
+
+          p_city:
+            document.getElementById("city").value.trim(),
+
+          p_tracking:
+            document.getElementById("tracking").value.trim(),
+
+          p_return_address:
+            document.getElementById("returnAddress").value.trim(),
+
+          p_return_city:
+            document.getElementById("returnCity").value.trim(),
+
+          p_items:
+            items
+        }
+      );
+
+    if(error){
+      throw error;
     }
+
+    const ticketNo =
+      data?.[0]?.ticket_no || "—";
+
+    alert(
+      "Zgłoszenie zapisane.\n\n" +
+      "Numer: " +
+      ticketNo +
+      "\n" +
+      "Liczba sprzętów: " +
+      items.length
+    );
+
+    e.target.reset();
+
+    resetRepairDevices();
+
+    await loadRepairs();
+
+    document
+      .getElementById("konto")
+      .scrollIntoView({
+        behavior:"smooth"
+      });
+
+  }catch(err){
+
+    console.error(
+      "Błąd zapisu zgłoszenia:",
+      err
+    );
+
+    alert(
+      "Nie udało się zapisać zgłoszenia: " +
+      (err?.message || "nieznany błąd")
+    );
+
+  }finally{
+
+    b.disabled = false;
+    b.textContent = "Wyślij zgłoszenie";
+
+  }
+}  
+
     function escapeHtml(v){return String(v??"").replace(/[&<>'"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[ch])}
     function copyShipping(){const text="Odbiorca: BarberSerwis\nTelefon: +48 782 618 575\nAdres odbioru przesyłek: ul. Sportowa 6, 55-095 Mirków\nInPost: MRK03M\nDPD Pickup: PL83482\nOrlen Paczka: 328169\nPunkt z obsługą DPD: Żabka, ul. Sportowa 2/1, 55-095 Mirków";navigator.clipboard.writeText(text);alert("Dane do wysyłki zostały skopiowane.")}
     document.getElementById("authModal").addEventListener("click",e=>{if(e.target.id==="authModal")closeAccount()});
     window.addEventListener("DOMContentLoaded",async()=>{const c=getSb();if(!c)return updateAccountUi(null);const {data}=await c.auth.getSession();updateAccountUi(data?.session?.user||null);c.auth.onAuthStateChange((_e,s)=>updateAccountUi(s?.user||null))});
-  </script>
+if(document.readyState === "loading"){
+  document.addEventListener("DOMContentLoaded", () => {
+    if(
+      document.getElementById("repairDevices") &&
+      !document.querySelector("#repairDevices .repair-device")
+    ){
+      addRepairDevice();
+    }
+  });
+}else{
+  if(
+    document.getElementById("repairDevices") &&
+    !document.querySelector("#repairDevices .repair-device")
+  ){
+    addRepairDevice();
+  }
+}  </script>
 
 </body>
 </html>
