@@ -830,55 +830,113 @@ Jeśli wymaga adresu – wpisz: ul. Sportowa 6, 55-095 Mirków.
     </div>
   </section>
 
-
-
   <section class="section" id="formularz">
     <h3>Zgłoś naprawę</h3>
+
     <p class="section-sub">
       Wypełnij dane tylko raz i dodaj wszystkie urządzenia znajdujące się w jednej przesyłce.
     </p>
 
     <div class="form-box">
       <form onsubmit="submitRepair(event)">
-        <div class="form-row">
-          <input type="text" id="name" placeholder="Imię i nazwisko" required>
-          <input type="tel" id="phone" placeholder="Telefon" required>
-        </div>
 
-        <div class="form-row">
-          <input type="text" id="city" placeholder="Miasto">
-          <input type="text" id="tracking" placeholder="Numer przesyłki">
-        </div>
+        <input
+          type="text"
+          id="firstName"
+          placeholder="Imię"
+          required
+        >
 
-        <p style="color:#bbb;text-align:center;margin:10px 0 0;">
+        <input
+          type="text"
+          id="lastName"
+          placeholder="Nazwisko"
+          required
+        >
+
+        <input
+          type="tel"
+          id="phone"
+          placeholder="Telefon"
+          required
+        >
+
+        <input
+          type="text"
+          id="tracking"
+          placeholder="Numer przesyłki"
+        >
+
+        <p style="color:#bbb;text-align:center;margin:12px 0 2px;">
           Podaj adres, na który ma zostać odesłany naprawiony sprzęt.
         </p>
 
-        <input type="text" id="returnAddress" placeholder="Adres do zwrotu (ulica i numer)" required>
-        <input type="text" id="returnCity" placeholder="Kod pocztowy" required>
+        <input
+          type="text"
+          id="returnAddress"
+          placeholder="Adres do zwrotu – ulica i numer"
+          required
+        >
+
+        <input
+          type="text"
+          id="returnPostalCode"
+          placeholder="Kod pocztowy"
+          required
+        >
+
+        <input
+          type="text"
+          id="returnCity"
+          placeholder="Miasto"
+          required
+        >
 
         <div style="margin-top:18px;text-align:center;">
-          <strong style="color:#e0b36a;font-size:20px;">Sprzęt do naprawy</strong>
+          <strong style="color:#e0b36a;font-size:20px;">
+            Sprzęt do naprawy
+          </strong>
+
           <p style="color:#bbb;font-size:14px;margin:5px 0;">
             Dodaj osobno każdą maszynkę, trymer lub inne urządzenie znajdujące się w paczce.
           </p>
         </div>
 
-        <div id="repairDevices" class="repair-devices"></div>
+        <div
+          id="repairDevices"
+          class="repair-devices"
+        ></div>
 
         <div class="add-device-box">
-          <button type="button" class="btn btn-dark" onclick="addRepairDevice()">
+          <button
+            type="button"
+            class="btn btn-dark"
+            onclick="addRepairDevice()"
+          >
             + Dodaj kolejny sprzęt
           </button>
         </div>
 
-        <div id="deviceCount" class="device-count"></div>
+        <div
+          id="deviceCount"
+          class="device-count"
+        ></div>
 
         <label class="privacy-check">
-          <input type="checkbox" id="privacyConsent" required>
+          <input
+            type="checkbox"
+            id="privacyConsent"
+            required
+          >
+
           <span>
             Zapoznałem/am się z
-            <a href="polityka-prywatnosci.html" target="_blank">Polityką prywatności</a>
+            <a
+              href="polityka-prywatnosci.html"
+              target="_blank"
+            >
+              Polityką prywatności
+            </a>
             i zasadami przetwarzania danych w związku ze zgłoszeniem serwisowym.
           </span>
         </label>
@@ -888,9 +946,14 @@ Jeśli wymaga adresu – wpisz: ul. Sportowa 6, 55-095 Mirków.
           Musisz być zalogowany/a.
         </p>
 
-        <button class="btn btn-gold" type="submit" id="repairSubmitBtn">
+        <button
+          class="btn btn-gold"
+          type="submit"
+          id="repairSubmitBtn"
+        >
           Wyślij zgłoszenie
         </button>
+
       </form>
 
       <div class="form-note">
@@ -898,6 +961,7 @@ Jeśli wymaga adresu – wpisz: ul. Sportowa 6, 55-095 Mirków.
       </div>
     </div>
   </section>
+
 
   <section class="section" id="konto">
     <h3>Panel klienta – moje naprawy</h3>
@@ -1243,13 +1307,13 @@ function resetRepairDevices(){
         "create_repair_with_items",
         {
           p_name:
-            document.getElementById("name").value.trim(),
+            (document.getElementById("firstName").value.trim() + " " + document.getElementById("lastName").value.trim()).trim(),
 
           p_phone:
             document.getElementById("phone").value.trim(),
 
           p_city:
-            document.getElementById("city").value.trim(),
+            document.getElementById("returnCity").value.trim(),
 
           p_tracking:
             document.getElementById("tracking").value.trim(),
@@ -1258,7 +1322,7 @@ function resetRepairDevices(){
             document.getElementById("returnAddress").value.trim(),
 
           p_return_city:
-            document.getElementById("returnCity").value.trim(),
+            (document.getElementById("returnPostalCode").value.trim() + " " + document.getElementById("returnCity").value.trim()).trim(),
 
           p_items:
             items
