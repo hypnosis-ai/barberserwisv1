@@ -509,26 +509,50 @@
     .auth-card input{width:100%;padding:14px;margin:7px 0;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:#202028;color:#fff;font:inherit}.auth-message{margin-top:12px;font-size:14px;line-height:1.5}.auth-message.ok{color:#9fe0a8}.auth-message.err{color:#ff8b8b}
     .account-bar{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:center;margin:0 auto 24px}.account-status{color:#d2c6b6;font-size:14px}.repairs-list{display:grid;gap:16px;margin-top:22px}.repair-item{background:#202028;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:18px}.repair-head{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;align-items:center}.repair-ticket{color:#e0b36a;font-weight:700}.repair-status{color:#fff;font-weight:700;background:#2c2c36;border-radius:999px;padding:6px 10px;font-size:13px}.repair-meta{color:#bbb;font-size:14px;margin-top:8px}.repair-details{margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.07);display:grid;gap:8px;color:#d8d8d8;font-size:14px}.repair-details strong{color:#f0c988}.status-steps{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.status-step{font-size:12px;padding:6px 9px;border-radius:999px;background:#2b2b34;color:#888;border:1px solid rgba(255,255,255,.05)}.status-step.done{background:rgba(224,179,106,.13);color:#f0c988;border-color:rgba(224,179,106,.3)}.panel-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px}.small-note{font-size:12px;color:#999;margin-top:10px}
     .privacy-check{display:flex;align-items:flex-start;gap:9px;color:#bbb;font-size:13px;line-height:1.45;margin:4px 0 2px;text-align:left}.privacy-check input{width:auto;margin-top:3px}.privacy-check a{color:#e0b36a;text-decoration:underline}
-  if(document.readyState === "loading"){
-  document.addEventListener(
-    "DOMContentLoaded",
-    () => {
-      if(
-        document.getElementById("repairDevices") &&
-        !document.querySelector("#repairDevices .repair-device")
-      ){
-        addRepairDevice();
-      }
+
+    /* ===== Wiele sprzętów w jednym zgłoszeniu ===== */
+    .repair-devices{
+      display:grid;
+      gap:16px;
+      margin-top:8px;
     }
-  );
-}else{
-  if(
-    document.getElementById("repairDevices") &&
-    !document.querySelector("#repairDevices .repair-device")
-  ){
-    addRepairDevice();
-  }
-}</style>
+    .repair-device{
+      background:#202028;
+      border:1px solid rgba(224,179,106,.25);
+      border-radius:14px;
+      padding:18px;
+    }
+    .repair-device-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin-bottom:14px;
+    }
+    .repair-device-title{
+      color:#e0b36a;
+      font-weight:700;
+      font-size:17px;
+    }
+    .remove-device{
+      background:#512828;
+      color:#fff;
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:8px;
+      padding:8px 12px;
+      cursor:pointer;
+    }
+    .add-device-box{
+      text-align:center;
+      margin:6px 0 10px;
+    }
+    .device-count{
+      color:#aaa;
+      font-size:13px;
+      text-align:center;
+    }
+
+</style>
   <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18034553646">
 </script>
@@ -806,6 +830,74 @@ Jeśli wymaga adresu – wpisz: ul. Sportowa 6, 55-095 Mirków.
     </div>
   </section>
 
+
+
+  <section class="section" id="formularz">
+    <h3>Zgłoś naprawę</h3>
+    <p class="section-sub">
+      Wypełnij dane tylko raz i dodaj wszystkie urządzenia znajdujące się w jednej przesyłce.
+    </p>
+
+    <div class="form-box">
+      <form onsubmit="submitRepair(event)">
+        <div class="form-row">
+          <input type="text" id="name" placeholder="Imię i nazwisko" required>
+          <input type="tel" id="phone" placeholder="Telefon" required>
+        </div>
+
+        <div class="form-row">
+          <input type="text" id="city" placeholder="Miasto">
+          <input type="text" id="tracking" placeholder="Numer przesyłki">
+        </div>
+
+        <p style="color:#bbb;text-align:center;margin:10px 0 0;">
+          Podaj adres, na który ma zostać odesłany naprawiony sprzęt.
+        </p>
+
+        <input type="text" id="returnAddress" placeholder="Adres do zwrotu (ulica i numer)" required>
+        <input type="text" id="returnCity" placeholder="Kod pocztowy" required>
+
+        <div style="margin-top:18px;text-align:center;">
+          <strong style="color:#e0b36a;font-size:20px;">Sprzęt do naprawy</strong>
+          <p style="color:#bbb;font-size:14px;margin:5px 0;">
+            Dodaj osobno każdą maszynkę, trymer lub inne urządzenie znajdujące się w paczce.
+          </p>
+        </div>
+
+        <div id="repairDevices" class="repair-devices"></div>
+
+        <div class="add-device-box">
+          <button type="button" class="btn btn-dark" onclick="addRepairDevice()">
+            + Dodaj kolejny sprzęt
+          </button>
+        </div>
+
+        <div id="deviceCount" class="device-count"></div>
+
+        <label class="privacy-check">
+          <input type="checkbox" id="privacyConsent" required>
+          <span>
+            Zapoznałem/am się z
+            <a href="polityka-prywatnosci.html" target="_blank">Polityką prywatności</a>
+            i zasadami przetwarzania danych w związku ze zgłoszeniem serwisowym.
+          </span>
+        </label>
+
+        <p style="font-size:13px;color:#bbb;">
+          Wszystkie urządzenia zostaną zapisane pod jednym numerem zgłoszenia.
+          Musisz być zalogowany/a.
+        </p>
+
+        <button class="btn btn-gold" type="submit" id="repairSubmitBtn">
+          Wyślij zgłoszenie
+        </button>
+      </form>
+
+      <div class="form-note">
+        Po wysłaniu otrzymasz jeden numer zgłoszenia dla całej przesyłki.
+      </div>
+    </div>
+  </section>
 
   <section class="section" id="konto">
     <h3>Panel klienta – moje naprawy</h3>
@@ -1241,7 +1333,8 @@ if(document.readyState === "loading"){
   ){
     addRepairDevice();
   }
-}  </script>
+}
+  </script>
 
 </body>
 </html>
