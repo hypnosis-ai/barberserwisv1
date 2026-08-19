@@ -650,7 +650,155 @@ Naprawiam sprzęt barberów i użytkowników domowych: Wahl, Andis, Babyliss, Pa
     </div>
   </section>
 
-  <section class="section">
+  <section class="section hidden" id="formularz">
+    <h3>Zgłoś naprawę</h3>
+
+    <p class="section-sub">
+      Wypełnij dane tylko raz i dodaj wszystkie urządzenia znajdujące się w jednej przesyłce.
+    </p>
+
+    <div class="form-box">
+      <form onsubmit="submitRepair(event)">
+
+        <input
+          type="text"
+          id="firstName"
+          placeholder="Imię"
+          required
+        >
+
+        <input
+          type="text"
+          id="lastName"
+          placeholder="Nazwisko"
+          required
+        >
+
+        <input
+          type="tel"
+          id="phone"
+          placeholder="Telefon"
+          required
+        >
+
+        <input
+          type="text"
+          id="tracking"
+          placeholder="Numer przesyłki"
+        >
+
+        <p style="color:#bbb;text-align:center;margin:12px 0 2px;">
+          Podaj adres, na który ma zostać odesłany naprawiony sprzęt.
+        </p>
+
+        <input
+          type="text"
+          id="returnAddress"
+          placeholder="Adres do zwrotu – ulica i numer"
+          required
+        >
+
+        <input
+          type="text"
+          id="returnPostalCode"
+          placeholder="Kod pocztowy"
+          required
+        >
+
+        <input
+          type="text"
+          id="returnCity"
+          placeholder="Miasto"
+          required
+        >
+
+        <div style="margin-top:18px;text-align:center;">
+          <strong style="color:#e0b36a;font-size:20px;">
+            Sprzęt do naprawy
+          </strong>
+
+          <p style="color:#bbb;font-size:14px;margin:5px 0;">
+            Dodaj osobno każdą maszynkę, trymer lub inne urządzenie znajdujące się w paczce.
+          </p>
+        </div>
+
+        <div
+          id="repairDevices"
+          class="repair-devices"
+        ></div>
+
+        <div class="add-device-box">
+          <button
+            type="button"
+            class="btn btn-dark"
+            onclick="addRepairDevice()"
+          >
+            + Dodaj kolejny sprzęt
+          </button>
+        </div>
+
+        <div
+          id="deviceCount"
+          class="device-count"
+        ></div>
+
+        <label class="privacy-check">
+          <input
+            type="checkbox"
+            id="privacyConsent"
+            required
+          >
+
+          <span>
+            Zapoznałem/am się z
+            <a
+              href="polityka-prywatnosci.html"
+              target="_blank"
+            >
+              Polityką prywatności
+            </a>
+            i zasadami przetwarzania danych w związku ze zgłoszeniem serwisowym.
+          </span>
+        </label>
+
+        <p style="font-size:13px;color:#bbb;">
+          Wszystkie urządzenia zostaną zapisane pod jednym numerem zgłoszenia.
+          Musisz być zalogowany/a.
+        </p>
+
+        <button
+          class="btn btn-gold"
+          type="submit"
+          id="repairSubmitBtn"
+        >
+          Wyślij zgłoszenie
+        </button>
+
+      </form>
+
+      <div class="form-note">
+        Po wysłaniu otrzymasz jeden numer zgłoszenia dla całej przesyłki.
+      </div>
+    </div>
+  </section>
+
+<section class="section hidden" id="konto">
+    <h3>Panel klienta – moje naprawy</h3>
+    <p class="section-sub">Tutaj sprawdzisz swoje zgłoszenia, wycenę, numer przesyłki i aktualny etap naprawy.</p>
+    <div class="form-box">
+      <div class="account-bar">
+        <span class="account-status" id="accountStatus">Nie jesteś zalogowany/a.</span>
+        <button class="btn btn-gold" type="button" id="accountLoginBtn" onclick="openAccount()">Zaloguj / Załóż konto</button>
+        <button class="btn btn-dark hidden" type="button" id="accountRefreshBtn" onclick="loadRepairs()">Odśwież statusy</button>
+        <button class="btn btn-dark hidden" type="button" id="accountLogoutBtn" onclick="logoutClient()">Wyloguj</button>
+      </div>
+      <div id="repairsEmpty" class="form-note">Po zalogowaniu zobaczysz tutaj swoje zgłoszenia.</div>
+      <div id="repairsList" class="repairs-list"></div>
+      <p class="small-note">Statusy i wyceny są aktualizowane przez BarberSerwis po diagnozie sprzętu.</p>
+    </div>
+  </section>
+
+<section class="section">
     <h3>Serwis i naprawa maszynek do strzyżenia i trymerów</h3>
     <p class="section-sub">
   Wykonuję kompleksowy serwis maszynek do strzyżenia i trymerów używanych w barber shopach
@@ -827,155 +975,6 @@ Jeśli wymaga adresu – wpisz: ul. Sportowa 6, 55-095 Mirków.
       <p class="shipping-note">
         Po nadaniu paczki prześlij numer przesyłki w formularzu zgłoszenia lub wiadomości e-mail.
       </p>
-    </div>
-  </section>
-
-  <section class="section hidden" id="formularz">
-    <h3>Zgłoś naprawę</h3>
-
-    <p class="section-sub">
-      Wypełnij dane tylko raz i dodaj wszystkie urządzenia znajdujące się w jednej przesyłce.
-    </p>
-
-    <div class="form-box">
-      <form onsubmit="submitRepair(event)">
-
-        <input
-          type="text"
-          id="firstName"
-          placeholder="Imię"
-          required
-        >
-
-        <input
-          type="text"
-          id="lastName"
-          placeholder="Nazwisko"
-          required
-        >
-
-        <input
-          type="tel"
-          id="phone"
-          placeholder="Telefon"
-          required
-        >
-
-        <input
-          type="text"
-          id="tracking"
-          placeholder="Numer przesyłki"
-        >
-
-        <p style="color:#bbb;text-align:center;margin:12px 0 2px;">
-          Podaj adres, na który ma zostać odesłany naprawiony sprzęt.
-        </p>
-
-        <input
-          type="text"
-          id="returnAddress"
-          placeholder="Adres do zwrotu – ulica i numer"
-          required
-        >
-
-        <input
-          type="text"
-          id="returnPostalCode"
-          placeholder="Kod pocztowy"
-          required
-        >
-
-        <input
-          type="text"
-          id="returnCity"
-          placeholder="Miasto"
-          required
-        >
-
-        <div style="margin-top:18px;text-align:center;">
-          <strong style="color:#e0b36a;font-size:20px;">
-            Sprzęt do naprawy
-          </strong>
-
-          <p style="color:#bbb;font-size:14px;margin:5px 0;">
-            Dodaj osobno każdą maszynkę, trymer lub inne urządzenie znajdujące się w paczce.
-          </p>
-        </div>
-
-        <div
-          id="repairDevices"
-          class="repair-devices"
-        ></div>
-
-        <div class="add-device-box">
-          <button
-            type="button"
-            class="btn btn-dark"
-            onclick="addRepairDevice()"
-          >
-            + Dodaj kolejny sprzęt
-          </button>
-        </div>
-
-        <div
-          id="deviceCount"
-          class="device-count"
-        ></div>
-
-        <label class="privacy-check">
-          <input
-            type="checkbox"
-            id="privacyConsent"
-            required
-          >
-
-          <span>
-            Zapoznałem/am się z
-            <a
-              href="polityka-prywatnosci.html"
-              target="_blank"
-            >
-              Polityką prywatności
-            </a>
-            i zasadami przetwarzania danych w związku ze zgłoszeniem serwisowym.
-          </span>
-        </label>
-
-        <p style="font-size:13px;color:#bbb;">
-          Wszystkie urządzenia zostaną zapisane pod jednym numerem zgłoszenia.
-          Musisz być zalogowany/a.
-        </p>
-
-        <button
-          class="btn btn-gold"
-          type="submit"
-          id="repairSubmitBtn"
-        >
-          Wyślij zgłoszenie
-        </button>
-
-      </form>
-
-      <div class="form-note">
-        Po wysłaniu otrzymasz jeden numer zgłoszenia dla całej przesyłki.
-      </div>
-    </div>
-  </section>
-
-
-  <section class="section hidden" id="konto">
-    <h3>Panel klienta – moje naprawy</h3>
-    <p class="section-sub">Tutaj sprawdzisz swoje zgłoszenia, wycenę, numer przesyłki i aktualny etap naprawy.</p>
-    <div class="form-box">
-      <div class="account-bar">
-        <span class="account-status" id="accountStatus">Nie jesteś zalogowany/a.</span>
-        <button class="btn btn-gold" type="button" id="accountLoginBtn" onclick="openAccount()">Zaloguj / Załóż konto</button>
-        <button class="btn btn-dark hidden" type="button" id="accountRefreshBtn" onclick="loadRepairs()">Odśwież statusy</button>
-        <button class="btn btn-dark hidden" type="button" id="accountLogoutBtn" onclick="logoutClient()">Wyloguj</button>
-      </div>
-      <div id="repairsEmpty" class="form-note">Po zalogowaniu zobaczysz tutaj swoje zgłoszenia.</div>
-      <div id="repairsList" class="repairs-list"></div>
-      <p class="small-note">Statusy i wyceny są aktualizowane przez BarberSerwis po diagnozie sprzętu.</p>
     </div>
   </section>
 
