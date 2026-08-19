@@ -173,6 +173,32 @@
       padding-top:0;
     }
 
+    .item-edit-grid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:10px;
+      margin-top:12px;
+    }
+
+    .item-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+
+    .item-msg{
+      margin-top:8px;
+      font-size:13px;
+      color:#cfcfcf;
+    }
+
+    @media(max-width:760px){
+      .item-edit-grid{
+        grid-template-columns:1fr;
+      }
+    }
+
     /* STATYSTYKI */
 
     .stats{
@@ -751,7 +777,7 @@ async function loadAllRepairs(){
     const {data:itemsData,error:itemsError} =
       await sb
         .from("repair_items")
-        .select("id,repair_id,item_no,device_name,model,issue_type,problem")
+        .select("id,repair_id,item_no,device_name,model,issue_type,problem,status,quote_amount,admin_note,quote_decision")
         .in("repair_id",repairIds)
         .order("item_no",{ascending:true});
 
@@ -975,13 +1001,102 @@ function renderRepairs(data){
       ? `
         <div class="items-box">
           <div class="items-title">Sprzęt do naprawy (${items.length})</div>
+
           ${items.map((item,index) => `
             <div class="item-row">
+
               <strong>Sprzęt ${esc(item.item_no || index + 1)}:</strong>
               ${esc(item.device_name || "—")}<br>
-              <strong>Model:</strong> ${esc(item.model || "—")}<br>
+
+              <strong>Model:</strong>
+              ${esc(item.model || "—")}<br>
+
               <strong>Problem:</strong>
-              ${esc(item.issue_type || "—")} – ${esc(item.problem || "—")}
+              ${esc(item.issue_type || "—")} – ${esc(item.problem || "—")}<br>
+
+              <strong>Decyzja klienta:</strong>
+              ${decisionText(item.quote_decision)}
+
+              <div class="item-edit-grid">
+
+                <div>
+                  <label>Status sprzętu</label>
+                  <select id="item-status-${item.id}">
+                    ${[
+                      "Nowe zgłoszenie",
+                      "Przyjęto",
+                      "Diagnoza / wycena",
+                      "Akceptacja",
+                      "Naprawa",
+                      "Gotowe",
+                      "Odesłano"
+                    ].map(s =>
+                      `<option ${s === (item.status || "Nowe zgłoszenie") ? "selected" : ""}>${s}</option>`
+                    ).join("")}
+                  </select>
+                </div>
+
+                <div>
+                  <label>Wycena sprzętu (zł)</label>
+                  <input
+                    id="item-quote-${item.id}"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value="${item.quote_amount ?? ""}"
+                    placeholder="np. 180"
+                  >
+                </div>
+
+                <div style="grid-column:1/-1;">
+                  <label>Informacja dla klienta o tym sprzęcie</label>
+                  <textarea
+                    id="item-note-${item.id}"
+                    placeholder="Np. Wymagana wymiana silnika"
+                  >${esc(item.admin_note || "")}</textarea>
+                </div>
+
+              </div>
+
+              <div class="item-actions">
+                <button
+                  class="gold"
+                  type="button"
+                  onclick="saveRepairItem('${item.id}')"
+                >
+                  Zapisz sprzęt
+                </button>
+
+                <button
+                  class="dark"
+                  type="button"
+                  onclick="setQuickItemStatus('${item.id}','Naprawa')"
+                >
+                  Ustaw: Naprawa
+                </button>
+
+                <button
+                  class="dark"
+                  type="button"
+                  onclick="setQuickItemStatus('${item.id}','Gotowe')"
+                >
+                  Ustaw: Gotowe
+                </button>
+
+                <button
+                  class="dark"
+                  type="button"
+                  onclick="setQuickItemStatus('${item.id}','Odesłano')"
+                >
+                  Ustaw: Odesłano
+                </button>
+              </div>
+
+              <div
+                class="item-msg"
+                id="item-msg-${item.id}"
+              ></div>
+
             </div>
           `).join("")}
         </div>
@@ -1172,6 +1287,53 @@ function renderRepairs(data){
 
   });
 
+}
+
+
+/* =============================
+   ZAPIS POJEDYNCZEGO SPRZĘTU
+============================= */
+
+async function saveRepairItem(itemId){
+
+  const status =
+    document.getElementById("item-status-"+itemId).value;
+
+  const qRaw =
+    document.getElementById("item-quote-"+itemId).value.trim();
+
+  const quote =
+    qRaw === "" ? null : Number(qRaw);
+
+  const note =
+    document.getElementById("item-note-"+itemId).value.trim() || null;
+
+  const msg =
+    document.getElementById("item-msg-"+itemId);
+
+  msg.textContent = "Zapisywanie…";
+
+  const {error} =
+    await sb.rpc("admin_update_repair_item",{
+      p_item_id:itemId,
+      p_status:status,
+      p_quote_amount:quote,
+      p_admin_note:note
+    });
+
+  if(error){
+    msg.textContent = "Błąd: " + error.message;
+    return;
+  }
+
+  msg.textContent = "Sprzęt zapisany ✅";
+
+  setTimeout(loadAllRepairs,500);
+}
+
+async function setQuickItemStatus(itemId,status){
+  document.getElementById("item-status-"+itemId).value = status;
+  await saveRepairItem(itemId);
 }
 
 
