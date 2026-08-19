@@ -588,7 +588,7 @@
     <div class="top-contact">
   <nav class="menu">
     <a href="#wysylka">Nadaj przesyłkę</a>
-    <a href="#formularz">Zgłoś naprawę</a>
+    <a href="javascript:void(0)" onclick="goToRepairForm()">Zgłoś naprawę</a>
     <a href="#kontakt">Kontakt</a>
   </nav>
 
@@ -612,7 +612,7 @@
 
       <div class="hero-buttons">
         <a class="btn btn-gold" href="#wysylka">Nadaj przesyłkę teraz</a>
-        <a class="btn btn-dark" href="#formularz">Zgłoś naprawę</a>
+        <a class="btn btn-dark" href="javascript:void(0)" onclick="goToRepairForm()">Zgłoś naprawę</a>
         <a class="btn btn-dark" href="tel:+48782618575">Telefon</a>
       </div>
 
@@ -830,7 +830,7 @@ Jeśli wymaga adresu – wpisz: ul. Sportowa 6, 55-095 Mirków.
     </div>
   </section>
 
-  <section class="section" id="formularz">
+  <section class="section hidden" id="formularz">
     <h3>Zgłoś naprawę</h3>
 
     <p class="section-sub">
@@ -963,7 +963,7 @@ Jeśli wymaga adresu – wpisz: ul. Sportowa 6, 55-095 Mirków.
   </section>
 
 
-  <section class="section" id="konto">
+  <section class="section hidden" id="konto">
     <h3>Panel klienta – moje naprawy</h3>
     <p class="section-sub">Tutaj sprawdzisz swoje zgłoszenia, wycenę, numer przesyłki i aktualny etap naprawy.</p>
     <div class="form-box">
@@ -1025,7 +1025,52 @@ Jeśli wymaga adresu – wpisz: ul. Sportowa 6, 55-095 Mirków.
     async function registerClient(){const c=getSb();if(!c)return setAuthMessage("Najpierw trzeba podłączyć projekt Supabase.","err");const email=document.getElementById("registerEmail").value.trim(),p=document.getElementById("registerPassword").value,p2=document.getElementById("registerPassword2").value;if(!email)return setAuthMessage("Podaj adres e-mail.","err");if(p.length<8)return setAuthMessage("Hasło musi mieć co najmniej 8 znaków.","err");if(p!==p2)return setAuthMessage("Hasła nie są takie same.","err");setAuthMessage("Tworzę konto…");const {data,error}=await c.auth.signUp({email,password:p,options:{emailRedirectTo:window.location.origin+window.location.pathname}});if(error)return setAuthMessage(error.message,"err");setAuthMessage(data.session?"Konto utworzone i zalogowano.":"Konto utworzone. Sprawdź e-mail i kliknij link potwierdzający.","ok");if(data.session)setTimeout(closeAccount,700)}
     async function loginClient(){const c=getSb();if(!c)return setAuthMessage("Najpierw trzeba podłączyć projekt Supabase.","err");const email=document.getElementById("loginEmail").value.trim(),password=document.getElementById("loginPassword").value;if(!email||!password)return setAuthMessage("Podaj e-mail i hasło.","err");setAuthMessage("Logowanie…");const {error}=await c.auth.signInWithPassword({email,password});if(error)return setAuthMessage("Nie udało się zalogować. Sprawdź e-mail, hasło i potwierdzenie konta.","err");setAuthMessage("Zalogowano.","ok");setTimeout(closeAccount,500)}
     async function logoutClient(){const c=getSb();if(c)await c.auth.signOut()}
-    function updateAccountUi(u){currentUser=u||null;const l=!!currentUser;document.getElementById("accountStatus").textContent=l?"Zalogowano: "+(currentUser.email||"konto klienta"):"Nie jesteś zalogowany/a.";document.getElementById("accountLoginBtn").classList.toggle("hidden",l);document.getElementById("accountLogoutBtn").classList.toggle("hidden",!l);document.getElementById("accountRefreshBtn").classList.toggle("hidden",!l);const b=document.getElementById("accountOpenBtn");b.textContent=l?"Moje naprawy":"Konto klienta";b.onclick=l?()=>document.getElementById("konto").scrollIntoView({behavior:"smooth"}):openAccount;if(l)loadRepairs();else{document.getElementById("repairsList").innerHTML="";document.getElementById("repairsEmpty").textContent="Po zalogowaniu zobaczysz tutaj swoje zgłoszenia."}}
+    
+function goToRepairForm(){
+  if(currentUser){
+    document.getElementById("formularz").scrollIntoView({behavior:"smooth"});
+  }else{
+    openAccount();
+  }
+}
+function updateAccountUi(u){
+  currentUser=u||null;
+  const l=!!currentUser;
+
+  document.getElementById("accountStatus").textContent =
+    l ? "Zalogowano: "+(currentUser.email||"konto klienta") : "Nie jesteś zalogowany/a.";
+
+  document.getElementById("accountLoginBtn").classList.toggle("hidden",l);
+  document.getElementById("accountLogoutBtn").classList.toggle("hidden",!l);
+  document.getElementById("accountRefreshBtn").classList.toggle("hidden",!l);
+
+  const formSection=document.getElementById("formularz");
+  const accountSection=document.getElementById("konto");
+
+  if(formSection){
+    formSection.classList.toggle("hidden",!l);
+  }
+
+  if(accountSection){
+    accountSection.classList.toggle("hidden",!l);
+  }
+
+  const b=document.getElementById("accountOpenBtn");
+
+  b.textContent = l ? "Moje naprawy" : "Konto klienta";
+
+  b.onclick = l
+    ? ()=>document.getElementById("konto").scrollIntoView({behavior:"smooth"})
+    : openAccount;
+
+  if(l){
+    loadRepairs();
+  }else{
+    document.getElementById("repairsList").innerHTML="";
+    document.getElementById("repairsEmpty").textContent=
+      "Po zalogowaniu zobaczysz tutaj swoje zgłoszenia.";
+  }
+}
     function statusRank(status){const s=String(status||"").toLowerCase();if(s.includes("odesł")||s.includes("wysłan"))return 6;if(s.includes("gotow"))return 5;if(s.includes("napraw"))return 4;if(s.includes("akcept"))return 3;if(s.includes("wycen")||s.includes("diagno"))return 2;if(s.includes("odebran")||s.includes("przyję"))return 1;return 0}
     async function loadRepairs(){
       const c=getSb();
