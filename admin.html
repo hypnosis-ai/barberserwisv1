@@ -289,6 +289,11 @@
       color:#b8eb83
     }
 
+    .status-cancelled{
+      background:#5a2a2a;
+      color:#ffaaaa
+    }
+
     @media(max-width:760px){
 
       .login-row,
@@ -606,6 +611,9 @@ function statusClass(status){
 
     case "Odesłano":
       return "status-sent";
+
+    case "Anulowane":
+      return "status-cancelled";
 
     default:
       return "status-new";
@@ -1029,7 +1037,8 @@ function renderRepairs(data){
                       "Akceptacja",
                       "Naprawa",
                       "Gotowe",
-                      "Odesłano"
+                      "Odesłano",
+                      "Anulowane"
                     ].map(s =>
                       `<option ${s === (item.status || "Nowe zgłoszenie") ? "selected" : ""}>${s}</option>`
                     ).join("")}
@@ -1089,6 +1098,14 @@ function renderRepairs(data){
                   onclick="setQuickItemStatus('${item.id}','Odesłano')"
                 >
                   Ustaw: Odesłano
+                </button>
+
+                <button
+                  class="danger"
+                  type="button"
+                  onclick="setQuickItemStatus('${item.id}','Anulowane')"
+                >
+                  Ustaw: Anulowane
                 </button>
               </div>
 
@@ -1178,7 +1195,8 @@ function renderRepairs(data){
               "Akceptacja",
               "Naprawa",
               "Gotowe",
-              "Odesłano"
+              "Odesłano",
+              "Anulowane"
             ]
 
             .map(s =>
@@ -1268,6 +1286,13 @@ function renderRepairs(data){
           onclick="setQuickStatus('${r.id}','Odesłano')"
         >
           Ustaw: Odesłano
+        </button>
+
+        <button
+          class="danger"
+          onclick="cancelRepairAdmin('${r.id}')"
+        >
+          Anuluj zgłoszenie
         </button>
 
       </div>
@@ -1527,6 +1552,72 @@ async function saveRepair(id){
 
   setTimeout(loadAllRepairs,500);
 }
+
+
+async function cancelRepairAdmin(id){
+
+  if(!confirm("Czy na pewno anulować całe zgłoszenie?")){
+    return;
+  }
+
+  const repair =
+    allRepairs.find(r => String(r.id) === String(id));
+
+  if(!repair){
+    alert("Nie znaleziono zgłoszenia.");
+    return;
+  }
+
+  const totalQuote =
+    calculateRepairTotalFromDom(repair);
+
+  const {error} =
+    await sb.rpc("admin_update_repair",{
+      p_id:id,
+      p_status:"Anulowane",
+      p_quote_amount:totalQuote,
+      p_admin_note:repair.admin_note || null,
+      p_tracking:repair.tracking || null
+    });
+
+  if(error){
+    alert("Nie udało się anulować zgłoszenia: " + error.message);
+    return;
+  }
+
+  if(Array.isArray(repair.items)){
+    for(const item of repair.items){
+      const {error:itemError} =
+        await sb.rpc("admin_update_repair_item",{
+          p_item_id:item.id,
+          p_status:"Anulowane",
+          p_quote_amount:item.quote_amount ?? null,
+          p_admin_note:item.admin_note || null
+        });
+
+      if(itemError){
+        alert("Zgłoszenie anulowano, ale nie udało się zaktualizować jednego sprzętu: " + itemError.message);
+        break;
+      }
+    }
+  }
+
+  const {error:mailError} =
+    await sb.functions.invoke("swift-responder",{
+      body:{
+        repair_id:id
+      }
+    });
+
+  if(mailError){
+    alert("Zgłoszenie anulowano, ale e-mail nie został wysłany: " + mailError.message);
+  }else{
+    alert("Zgłoszenie anulowano ✅");
+  }
+
+  await loadAllRepairs();
+}
+
 
 /* =============================
    SZYBKI STATUS
