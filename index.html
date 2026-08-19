@@ -554,6 +554,43 @@
       text-align:center;
     }
 
+
+    /* ===== Faktura VAT ===== */
+    .invoice-option{
+      display:flex;
+      align-items:flex-start;
+      gap:9px;
+      color:#ddd;
+      font-size:14px;
+      line-height:1.45;
+      margin:8px 0 2px;
+      text-align:left;
+    }
+
+    .invoice-option input{
+      width:auto;
+      margin-top:3px;
+    }
+
+    .invoice-fields{
+      display:none;
+      margin-top:10px;
+      padding:16px;
+      border:1px solid rgba(224,179,106,.25);
+      border-radius:12px;
+      background:#202028;
+    }
+
+    .invoice-fields.open{
+      display:block;
+    }
+
+    .invoice-title{
+      color:#e0b36a;
+      font-weight:700;
+      margin-bottom:10px;
+    }
+
 </style>
   <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18034553646">
@@ -762,6 +799,54 @@ Naprawiam sprzęt barberów i użytkowników domowych: Wahl, Andis, Babyliss, Pa
             i zasadami przetwarzania danych w związku ze zgłoszeniem serwisowym.
           </span>
         </label>
+
+        <label class="invoice-option">
+          <input
+            type="checkbox"
+            id="wantsInvoice"
+            onchange="toggleInvoiceFields()"
+          >
+          <span>Chcę otrzymać fakturę VAT</span>
+        </label>
+
+        <div id="invoiceFields" class="invoice-fields">
+
+          <div class="invoice-title">
+            Dane do faktury
+          </div>
+
+          <input
+            type="text"
+            id="invoiceCompanyName"
+            placeholder="Nazwa firmy"
+          >
+
+          <input
+            type="text"
+            id="invoiceNip"
+            placeholder="NIP"
+            inputmode="numeric"
+          >
+
+          <input
+            type="text"
+            id="invoiceAddress"
+            placeholder="Adres firmy – ulica i numer"
+          >
+
+          <input
+            type="text"
+            id="invoicePostalCode"
+            placeholder="Kod pocztowy"
+          >
+
+          <input
+            type="text"
+            id="invoiceCity"
+            placeholder="Miasto"
+          >
+
+        </div>
 
         <p style="font-size:13px;color:#bbb;">
           Wszystkie urządzenia zostaną zapisane pod jednym numerem zgłoszenia.
@@ -1355,6 +1440,32 @@ function resetRepairDevices(){
   repairDeviceCounter = 0;
   addRepairDevice();
 }
+
+function toggleInvoiceFields(){
+  const checked =
+    document.getElementById("wantsInvoice")?.checked || false;
+
+  const box =
+    document.getElementById("invoiceFields");
+
+  if(!box) return;
+
+  box.classList.toggle("open", checked);
+
+  const requiredIds = [
+    "invoiceCompanyName",
+    "invoiceNip",
+    "invoiceAddress",
+    "invoicePostalCode",
+    "invoiceCity"
+  ];
+
+  requiredIds.forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.required = checked;
+  });
+}
+
   async function submitRepair(e){
 
   e.preventDefault();
@@ -1434,7 +1545,35 @@ function resetRepairDevices(){
             (document.getElementById("returnPostalCode").value.trim() + " " + document.getElementById("returnCity").value.trim()).trim(),
 
           p_items:
-            items
+            items,
+
+          p_wants_invoice:
+            document.getElementById("wantsInvoice").checked,
+
+          p_invoice_company_name:
+            document.getElementById("wantsInvoice").checked
+              ? document.getElementById("invoiceCompanyName").value.trim()
+              : null,
+
+          p_invoice_nip:
+            document.getElementById("wantsInvoice").checked
+              ? document.getElementById("invoiceNip").value.trim()
+              : null,
+
+          p_invoice_address:
+            document.getElementById("wantsInvoice").checked
+              ? document.getElementById("invoiceAddress").value.trim()
+              : null,
+
+          p_invoice_postal_code:
+            document.getElementById("wantsInvoice").checked
+              ? document.getElementById("invoicePostalCode").value.trim()
+              : null,
+
+          p_invoice_city:
+            document.getElementById("wantsInvoice").checked
+              ? document.getElementById("invoiceCity").value.trim()
+              : null
         }
       );
 
@@ -1455,6 +1594,7 @@ function resetRepairDevices(){
     );
 
     e.target.reset();
+    toggleInvoiceFields();
 
     resetRepairDevices();
 
