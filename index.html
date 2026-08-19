@@ -1077,111 +1077,117 @@ function updateAccountUi(u){
 
       const e=document.getElementById("repairsEmpty");
       const l=document.getElementById("repairsList");
-
       e.textContent="Ładowanie zgłoszeń…";
       l.innerHTML="";
 
-      const {data,error}=await c
+      const {data:repairs,error:repairsError}=await c
         .from("repairs")
-        .select("ticket_no,model,status,quote_amount,quote_decision,quote_decision_at,created_at,issue_type,problem,admin_note")
+        .select("id,ticket_no,status,created_at,tracking_no")
         .order("created_at",{ascending:false});
 
-      if(error){
-        e.textContent="Nie udało się pobrać zgłoszeń: "+error.message;
+      if(repairsError){
+        e.textContent="Nie udało się pobrać zgłoszeń: "+repairsError.message;
+        return;
+      }
+      if(!repairs?.length){
+        e.textContent="Nie masz jeszcze żadnych zgłoszeń.";
         return;
       }
 
-      if(!data?.length){
-        e.textContent="Nie masz jeszcze żadnych zgłoszeń.";
-        l.innerHTML="";
+      const repairIds=repairs.map(r=>r.id).filter(Boolean);
+      const {data:items,error:itemsError}=await c
+        .from("repair_items")
+        .select("id,repair_id,item_no,device_name,model,issue_type,problem,status,quote_amount,admin_note,quote_decision")
+        .in("repair_id",repairIds)
+        .order("item_no",{ascending:true});
+
+      if(itemsError){
+        e.textContent="Nie udało się pobrać sprzętów: "+itemsError.message;
         return;
       }
+
+      const byRepair={};
+      (items||[]).forEach(item=>{
+        (byRepair[item.repair_id] ||= []).push(item);
+      });
 
       e.textContent="";
       l.innerHTML="";
-
       const steps=["Zgłoszenie","Przyjęto","Diagnoza / wycena","Akceptacja","Naprawa","Gotowe","Odesłano"];
 
-      data.forEach(r=>{
-        const i=document.createElement("div");
-        i.className="repair-item";
-
+      repairs.forEach(r=>{
+        const card=document.createElement("div");
+        card.className="repair-item";
         const d=new Date(r.created_at).toLocaleString("pl-PL");
-        const q=r.quote_amount!=null ? Number(r.quote_amount).toFixed(2)+" zł" : "—";
-        const rank=statusRank(r.status);
+        const repairItems=byRepair[r.id]||[];
 
-        const progress=steps
-          .map((x,idx)=>`<span class="status-step ${idx<=rank?'done':''}">${escapeHtml(x)}</span>`)
-          .join("");
+        const devicesHtml=repairItems.length ? repairItems.map((item,index)=>{
+          const status=item.status||r.status||"Nowe zgłoszenie";
+          const rank=statusRank(status);
+          const q=item.quote_amount!=null ? Number(item.quote_amount).toFixed(2)+" zł" : "—";
+          const progress=steps.map((x,idx)=>`<span class="status-step ${idx<=rank?'done':''}">${escapeHtml(x)}</span>`).join("");
 
-        let quoteDecisionHtml="";
-        if(r.quote_amount!=null){
-          if(r.quote_decision==="accepted"){
-            quoteDecisionHtml=`<div style="margin-top:14px;padding:12px;border:1px solid rgba(89,190,120,.45);border-radius:10px;">
-              <strong>Decyzja klienta:</strong> Wycena zaakceptowana ✅
-            </div>`;
-          }else if(r.quote_decision==="rejected"){
-            quoteDecisionHtml=`<div style="margin-top:14px;padding:12px;border:1px solid rgba(220,90,90,.45);border-radius:10px;">
-              <strong>Decyzja klienta:</strong> Wycena odrzucona ❌
-            </div>`;
-          }else{
-            quoteDecisionHtml=`<div style="margin-top:14px;">
-              <div style="margin-bottom:8px;"><strong>Akceptujesz wycenę ${q}?</strong></div>
-              <button class="btn btn-gold" type="button" style="margin:4px 8px 4px 0;" onclick="setQuoteDecision('${r.ticket_no}','accepted')">Akceptuję wycenę</button>
-              <button class="btn btn-dark" type="button" style="margin:4px 0;" onclick="setQuoteDecision('${r.ticket_no}','rejected')">Nie akceptuję</button>
-            </div>`;
+          let decisionHtml="";
+          if(item.quote_amount!=null){
+            if(item.quote_decision==="accepted"){
+              decisionHtml=`<div style="margin-top:14px;padding:12px;border:1px solid rgba(89,190,120,.45);border-radius:10px;"><strong>Decyzja klienta:</strong> Wycena zaakceptowana ✅</div>`;
+            }else if(item.quote_decision==="rejected"){
+              decisionHtml=`<div style="margin-top:14px;padding:12px;border:1px solid rgba(220,90,90,.45);border-radius:10px;"><strong>Decyzja klienta:</strong> Wycena odrzucona ❌</div>`;
+            }else{
+              decisionHtml=`<div style="margin-top:14px;"><div style="margin-bottom:8px;"><strong>Akceptujesz wycenę ${q}?</strong></div><button class="btn btn-gold" type="button" style="margin:4px 8px 4px 0;" onclick="setItemQuoteDecision('${item.id}','accepted')">Akceptuję wycenę</button><button class="btn btn-dark" type="button" style="margin:4px 0;" onclick="setItemQuoteDecision('${item.id}','rejected')">Nie akceptuję</button></div>`;
+            }
           }
-        }
 
-        i.innerHTML=`
+          return `<div class="repair-device" style="margin-top:14px;">
+            <div class="repair-device-head">
+              <div class="repair-device-title">Sprzęt ${escapeHtml(item.item_no||index+1)}: ${escapeHtml(item.device_name||"—")}</div>
+              <span class="repair-status">${escapeHtml(status)}</span>
+            </div>
+            <div><strong>Model:</strong> ${escapeHtml(item.model||"—")}</div>
+            <div><strong>Rodzaj problemu:</strong> ${escapeHtml(item.issue_type||"—")}</div>
+            <div><strong>Opis:</strong> ${escapeHtml(item.problem||"—")}</div>
+            <div class="status-steps">${progress}</div>
+            <div class="repair-details">
+              <div><strong>Wycena:</strong> ${q}</div>
+              ${item.admin_note?`<div><strong>Informacja z serwisu:</strong> ${escapeHtml(item.admin_note)}</div>`:""}
+              ${decisionHtml}
+            </div>
+          </div>`;
+        }).join("") : `<div class="form-note">Brak sprzętów przypisanych do tego zgłoszenia.</div>`;
+
+        card.innerHTML=`
           <div class="repair-head">
             <span class="repair-ticket">${escapeHtml(r.ticket_no)}</span>
             <span class="repair-status">${escapeHtml(r.status||"Nowe zgłoszenie")}</span>
           </div>
-          <div class="repair-meta">${escapeHtml(r.model)} • zgłoszono ${d}</div>
-          <div class="status-steps">${progress}</div>
-          <div class="repair-details">
-            <div><strong>Rodzaj problemu:</strong> ${escapeHtml(r.issue_type||"—")}</div>
-            <div><strong>Opis:</strong> ${escapeHtml(r.problem||"—")}</div>
-            <div><strong>Wycena:</strong> ${q}</div>
-            ${r.admin_note?`<div><strong>Informacja z serwisu:</strong> ${escapeHtml(r.admin_note)}</div>`:""}
-            ${quoteDecisionHtml}
-          </div>`;
-
-        l.appendChild(i);
+          <div class="repair-meta">Zgłoszono ${d}${r.tracking_no?` • przesyłka: ${escapeHtml(r.tracking_no)}`:""}</div>
+          ${devicesHtml}`;
+        l.appendChild(card);
       });
     }
 
-    async function setQuoteDecision(ticketNo,decision){
+    async function setItemQuoteDecision(itemId,decision){
       const c=getSb();
       if(!c||!currentUser){
         alert("Najpierw zaloguj się do konta klienta.");
         return;
       }
-
       const accepted=decision==="accepted";
-      const question=accepted
-        ? "Czy na pewno akceptujesz tę wycenę?"
-        : "Czy na pewno nie akceptujesz tej wyceny?";
-
-      if(!confirm(question))return;
+      if(!confirm(accepted ? "Czy na pewno akceptujesz wycenę tego sprzętu?" : "Czy na pewno nie akceptujesz wyceny tego sprzętu?"))return;
 
       const {error}=await c
-        .from("repairs")
-        .update({
-          quote_decision:decision,
-          quote_decision_at:new Date().toISOString()
-        })
-        .eq("ticket_no",ticketNo);
+        .from("repair_items")
+        .update({quote_decision:decision})
+        .eq("id",itemId);
 
       if(error){
         alert("Nie udało się zapisać decyzji: "+error.message);
         return;
       }
-
-      alert(accepted ? "Wycena została zaakceptowana." : "Wycena została odrzucona.");
+      alert(accepted ? "Wycena tego sprzętu została zaakceptowana." : "Wycena tego sprzętu została odrzucona.");
       await loadRepairs();
     }
+
 let repairDeviceCounter = 0;
 
 function deviceProblemOptions(){
