@@ -1082,7 +1082,7 @@ function updateAccountUi(u){
 
       const {data:repairs,error:repairsError}=await c
         .from("repairs")
-        .select("id,ticket_no,status,created_at,tracking_no")
+        .select("id,ticket_no,status,created_at")
         .order("created_at",{ascending:false});
 
       if(repairsError){
@@ -1160,7 +1160,7 @@ function updateAccountUi(u){
             <span class="repair-ticket">${escapeHtml(r.ticket_no)}</span>
             <span class="repair-status">${escapeHtml(r.status||"Nowe zgłoszenie")}</span>
           </div>
-          <div class="repair-meta">Zgłoszono ${d}${r.tracking_no?` • przesyłka: ${escapeHtml(r.tracking_no)}`:""}</div>
+          <div class="repair-meta">Zgłoszono ${d}</div>
           ${devicesHtml}`;
         l.appendChild(card);
       });
