@@ -1226,9 +1226,17 @@ function addRepairDevice(){
 
     <input
       type="text"
-      class="device-model"
-      placeholder="Model maszynki / trymera"
+      class="device-name"
+      placeholder="Nazwa sprzętu, np. Maszynka do strzyżenia"
       required
+    >
+
+    <input
+      type="text"
+      class="device-model"
+      placeholder="Model, np. Wahl Senior"
+      required
+      style="margin-top:12px;"
     >
 
     <select
@@ -1281,6 +1289,7 @@ function getRepairDevices(){
   return Array.from(
     document.querySelectorAll("#repairDevices .repair-device")
   ).map(device => ({
+    device_name: device.querySelector(".device-name").value.trim(),
     model: device.querySelector(".device-model").value.trim(),
     issue_type: device.querySelector(".device-issue").value,
     problem: device.querySelector(".device-problem").value.trim()
@@ -1327,6 +1336,7 @@ function resetRepairDevices(){
   }
 
   const invalidItem = items.find(item =>
+    !item.device_name ||
     !item.model ||
     !item.issue_type ||
     !item.problem
@@ -1334,7 +1344,7 @@ function resetRepairDevices(){
 
   if(invalidItem){
     alert(
-      "Uzupełnij model, rodzaj problemu i opis dla każdego sprzętu."
+      "Uzupełnij nazwę sprzętu, model, rodzaj problemu i opis dla każdego sprzętu."
     );
     return;
   }
