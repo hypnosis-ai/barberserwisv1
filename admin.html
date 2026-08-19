@@ -198,7 +198,17 @@ async function saveRepair(id){
   });
 
   if(error){msg.textContent="Błąd: "+error.message;return;}
-  msg.textContent="Zapisano ✅";
+
+  const { error: mailError } = await sb.functions.invoke("swift-responder", {
+    body: { repair_id: id }
+  });
+
+  if(mailError){
+    msg.textContent="Zapisano, ale e-mail nie został wysłany: "+mailError.message;
+    return;
+  }
+
+  msg.textContent="Zapisano i wysłano e-mail ✅";
   setTimeout(loadAllRepairs,500);
 }
 
