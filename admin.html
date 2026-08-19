@@ -323,6 +323,39 @@
     }
     .invoice-admin-yes{color:#86e6a4;font-weight:800}
     .invoice-admin-no{color:#aaa;font-weight:700}
+
+    /* ===== Galeria administratora ===== */
+    .gallery-admin-panel{margin-top:18px}
+    .gallery-upload-grid{
+      display:grid;
+      grid-template-columns:1.2fr 1fr auto;
+      gap:12px;
+      align-items:end;
+    }
+    .gallery-admin-grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:14px;
+      margin-top:18px;
+    }
+    .gallery-admin-card{
+      border:1px solid #343640;
+      background:#202128;
+      border-radius:12px;
+      overflow:hidden;
+    }
+    .gallery-admin-media{width:100%;aspect-ratio:4/3;object-fit:cover;background:#111;display:block}
+    .gallery-admin-body{padding:12px}
+    .gallery-admin-caption{color:#ddd;font-size:14px;min-height:22px;margin-bottom:10px}
+    .gallery-admin-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .gallery-admin-actions button{padding:8px 10px}
+    .gallery-hidden-badge{color:#ffcf76;font-weight:700;font-size:12px}
+    @media(max-width:800px){
+      .gallery-upload-grid{grid-template-columns:1fr}
+      .gallery-admin-grid{grid-template-columns:1fr 1fr}
+    }
+    @media(max-width:520px){.gallery-admin-grid{grid-template-columns:1fr}}
+
 </style>
 </head>
 
@@ -396,7 +429,31 @@
   </div>
 
 
-  <!-- STATYSTYKI -->
+
+
+  <!-- GALERIA -->
+  <div id="galleryAdminPanel" class="panel hidden gallery-admin-panel">
+    <h2 style="margin-top:0;">Galeria strony</h2>
+    <p class="sub" style="margin-top:-4px;">Dodawaj zdjęcia i krótkie filmy widoczne na stronie głównej.</p>
+
+    <div class="gallery-upload-grid">
+      <div>
+        <label>Zdjęcie lub film</label>
+        <input id="galleryFile" type="file" accept="image/*,video/mp4,video/webm,video/quicktime">
+      </div>
+      <div>
+        <label>Podpis (opcjonalnie)</label>
+        <input id="galleryCaption" type="text" maxlength="180" placeholder="np. Naprawa Wahl Senior">
+      </div>
+      <button class="gold" id="galleryUploadBtn" onclick="uploadGalleryMedia()">Dodaj do galerii</button>
+    </div>
+
+    <div id="galleryMsg" class="msg"></div>
+    <div id="galleryAdminGrid" class="gallery-admin-grid"></div>
+  </div>
+
+
+    <!-- STATYSTYKI -->
 
   <div id="statsPanel" class="stats hidden">
 
@@ -543,6 +600,134 @@ const sb =
 
 
 let allRepairs = [];
+
+
+
+/* =============================
+   GALERIA ADMINISTRATORA
+============================= */
+async function loadGalleryAdmin(){
+  const box=document.getElementById("galleryAdminGrid");
+  if(!box) return;
+
+  const {data,error}=await sb
+    .from("gallery_media")
+    .select("id,media_type,storage_path,caption,is_visible,sort_order,created_at")
+    .order("sort_order",{ascending:true})
+    .order("created_at",{ascending:false});
+
+  if(error){
+    box.innerHTML='<div class="msg">Błąd galerii: '+esc(error.message)+'</div>';
+    return;
+  }
+
+  if(!data?.length){
+    box.innerHTML='<div class="msg">Galeria jest pusta.</div>';
+    return;
+  }
+
+  box.innerHTML=data.map(item=>{
+    const {data:urlData}=sb.storage.from("gallery").getPublicUrl(item.storage_path);
+    const url=urlData?.publicUrl||"";
+    const media=item.media_type==="video"
+      ? `<video class="gallery-admin-media" controls preload="metadata"><source src="${esc(url)}"></video>`
+      : `<img class="gallery-admin-media" src="${esc(url)}" alt="">`;
+
+    return `<div class="gallery-admin-card">
+      ${media}
+      <div class="gallery-admin-body">
+        <div class="gallery-admin-caption">${esc(item.caption||"Bez podpisu")}</div>
+        ${item.is_visible?"":'<div class="gallery-hidden-badge">UKRYTE NA STRONIE</div>'}
+        <div class="gallery-admin-actions">
+          <button class="dark" onclick="toggleGalleryVisibility('${item.id}',${!item.is_visible})">${item.is_visible?"Ukryj":"Pokaż"}</button>
+          <button class="dark" onclick="moveGalleryItem('${item.id}',-1)">↑</button>
+          <button class="dark" onclick="moveGalleryItem('${item.id}',1)">↓</button>
+          <button class="danger" onclick="deleteGalleryMedia('${item.id}','${esc(item.storage_path)}')">Usuń</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function uploadGalleryMedia(){
+  const fileInput=document.getElementById("galleryFile");
+  const caption=document.getElementById("galleryCaption").value.trim();
+  const msg=document.getElementById("galleryMsg");
+  const btn=document.getElementById("galleryUploadBtn");
+  const file=fileInput.files?.[0];
+
+  if(!file){msg.textContent="Wybierz zdjęcie albo film.";return;}
+  const isImage=file.type.startsWith("image/");
+  const isVideo=file.type.startsWith("video/");
+  if(!isImage&&!isVideo){msg.textContent="Dozwolone są tylko zdjęcia i filmy.";return;}
+  if(file.size>50*1024*1024){msg.textContent="Plik jest za duży. Maksymalnie 50 MB.";return;}
+
+  btn.disabled=true;
+  msg.textContent="Wysyłanie pliku…";
+
+  const ext=(file.name.split(".").pop()|| (isImage?"jpg":"mp4")).toLowerCase().replace(/[^a-z0-9]/g,"");
+  const path=`${Date.now()}-${crypto.randomUUID()}.${ext}`;
+
+  const {error:uploadError}=await sb.storage.from("gallery").upload(path,file,{upsert:false,contentType:file.type});
+  if(uploadError){msg.textContent="Błąd wysyłania: "+uploadError.message;btn.disabled=false;return;}
+
+  const {data:maxData}=await sb.from("gallery_media").select("sort_order").order("sort_order",{ascending:false}).limit(1);
+  const nextOrder=(maxData?.[0]?.sort_order??0)+10;
+
+  const {error:insertError}=await sb.from("gallery_media").insert({
+    media_type:isVideo?"video":"image",
+    storage_path:path,
+    caption:caption||null,
+    is_visible:true,
+    sort_order:nextOrder
+  });
+
+  if(insertError){
+    await sb.storage.from("gallery").remove([path]);
+    msg.textContent="Błąd zapisu galerii: "+insertError.message;
+    btn.disabled=false;
+    return;
+  }
+
+  fileInput.value="";
+  document.getElementById("galleryCaption").value="";
+  msg.textContent="Dodano do galerii ✅";
+  btn.disabled=false;
+  await loadGalleryAdmin();
+}
+
+async function toggleGalleryVisibility(id,visible){
+  const {error}=await sb.from("gallery_media").update({is_visible:visible}).eq("id",id);
+  if(error){alert("Błąd: "+error.message);return;}
+  await loadGalleryAdmin();
+}
+
+async function deleteGalleryMedia(id,path){
+  if(!confirm("Usunąć ten element z galerii?")) return;
+  const {error:storageError}=await sb.storage.from("gallery").remove([path]);
+  if(storageError){alert("Nie udało się usunąć pliku: "+storageError.message);return;}
+  const {error}=await sb.from("gallery_media").delete().eq("id",id);
+  if(error){alert("Plik usunięto, ale błąd wpisu galerii: "+error.message);return;}
+  await loadGalleryAdmin();
+}
+
+async function moveGalleryItem(id,direction){
+  const {data,error}=await sb.from("gallery_media")
+    .select("id,sort_order")
+    .order("sort_order",{ascending:true})
+    .order("created_at",{ascending:false});
+  if(error||!data) return;
+  const index=data.findIndex(x=>x.id===id);
+  const otherIndex=index+direction;
+  if(index<0||otherIndex<0||otherIndex>=data.length) return;
+  const current=data[index],other=data[otherIndex];
+  const a=current.sort_order??index*10,b=other.sort_order??otherIndex*10;
+  const r1=await sb.from("gallery_media").update({sort_order:b}).eq("id",current.id);
+  if(r1.error){alert("Błąd zmiany kolejności: "+r1.error.message);return;}
+  const r2=await sb.from("gallery_media").update({sort_order:a}).eq("id",other.id);
+  if(r2.error){alert("Błąd zmiany kolejności: "+r2.error.message);return;}
+  await loadGalleryAdmin();
+}
 
 
 /* =============================
@@ -736,6 +921,11 @@ async function checkSession(){
     .classList
     .toggle("hidden", !user);
 
+  document
+    .getElementById("galleryAdminPanel")
+    .classList
+    .toggle("hidden", !user);
+
 
   if(user){
 
@@ -745,6 +935,7 @@ async function checkSession(){
       "Zalogowano: " + user.email;
 
     await loadAllRepairs();
+    await loadGalleryAdmin();
 
   }
 
