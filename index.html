@@ -692,6 +692,7 @@
 
   <a class="btn btn-gold" href="tel:+48782618575">Zadzwoń</a>
   <button class="btn btn-dark account-btn" id="accountOpenBtn" type="button" onclick="openAccount()">Konto klienta</button>
+  <button class="btn btn-dark account-btn hidden" id="topLogoutBtn" type="button" onclick="logoutClient()">Wyloguj</button>
 </div>
   </header>
 
@@ -1213,6 +1214,11 @@ function updateAccountUi(u){
   }
 
   const b=document.getElementById("accountOpenBtn");
+  const topLogoutBtn=document.getElementById("topLogoutBtn");
+
+  if(topLogoutBtn){
+    topLogoutBtn.classList.toggle("hidden",!l);
+  }
 
   b.textContent = l ? "Moje naprawy" : "Konto klienta";
 
