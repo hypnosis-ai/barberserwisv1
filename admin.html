@@ -356,6 +356,48 @@
     }
     @media(max-width:520px){.gallery-admin-grid{grid-template-columns:1fr}}
 
+
+    /* ===== Uporządkowany panel administratora ===== */
+    .admin-nav{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:14px;
+    }
+    .admin-nav a{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:10px 14px;
+      border-radius:10px;
+      border:1px solid rgba(224,179,106,.28);
+      background:#202028;
+      color:#f0c988;
+      font-weight:700;
+      text-decoration:none;
+      cursor:pointer;
+    }
+    .admin-nav a:hover{
+      border-color:rgba(224,179,106,.65);
+      background:#272731;
+    }
+    .admin-section-title{
+      margin:28px 0 12px;
+      padding-bottom:10px;
+      border-bottom:1px solid rgba(224,179,106,.22);
+      color:#f0c988;
+      font-size:24px;
+    }
+    .admin-section-note{
+      color:#aaa;
+      margin:-4px 0 16px;
+      font-size:14px;
+    }
+    #repairsSection,
+    #gallerySection{
+      scroll-margin-top:18px;
+    }
+
 </style>
 </head>
 
@@ -426,34 +468,17 @@
 
     </div>
 
-  </div>
-
-
-
-
-  <!-- GALERIA -->
-  <div id="galleryAdminPanel" class="panel hidden gallery-admin-panel">
-    <h2 style="margin-top:0;">Galeria strony</h2>
-    <p class="sub" style="margin-top:-4px;">Dodawaj zdjęcia i krótkie filmy widoczne na stronie głównej.</p>
-
-    <div class="gallery-upload-grid">
-      <div>
-        <label>Zdjęcie lub film</label>
-        <input id="galleryFile" type="file" accept="image/*,video/mp4,video/webm,video/quicktime">
-      </div>
-      <div>
-        <label>Podpis (opcjonalnie)</label>
-        <input id="galleryCaption" type="text" maxlength="180" placeholder="np. Naprawa Wahl Senior">
-      </div>
-      <button class="gold" id="galleryUploadBtn" onclick="uploadGalleryMedia()">Dodaj do galerii</button>
+    <div class="admin-nav">
+      <a href="#repairsSection">Zgłoszenia</a>
+      <a href="#gallerySection">Galeria</a>
     </div>
 
-    <div id="galleryMsg" class="msg"></div>
-    <div id="galleryAdminGrid" class="gallery-admin-grid"></div>
   </div>
 
 
-    <!-- STATYSTYKI -->
+  <!-- ZGŁOSZENIA / STATYSTYKI / FILTRY -->
+
+<!-- STATYSTYKI -->
 
   <div id="statsPanel" class="stats hidden">
 
@@ -578,6 +603,28 @@
   <!-- ZGŁOSZENIA -->
 
   <div id="repairs"></div>
+
+  <div id="gallerySection">
+    <h2 class="admin-section-title">Galeria strony</h2>
+    <p class="admin-section-note">Dodawaj, ukrywaj, porządkuj i usuwaj zdjęcia oraz filmy widoczne na stronie głównej.</p>
+  </div>
+
+<div id="galleryAdminPanel" class="panel hidden gallery-admin-panel">
+    <div class="gallery-upload-grid">
+      <div>
+        <label>Zdjęcie lub film</label>
+        <input id="galleryFile" type="file" accept="image/*,video/mp4,video/webm,video/quicktime">
+      </div>
+      <div>
+        <label>Podpis (opcjonalnie)</label>
+        <input id="galleryCaption" type="text" maxlength="180" placeholder="np. Naprawa Wahl Senior">
+      </div>
+      <button class="gold" id="galleryUploadBtn" onclick="uploadGalleryMedia()">Dodaj do galerii</button>
+    </div>
+
+    <div id="galleryMsg" class="msg"></div>
+    <div id="galleryAdminGrid" class="gallery-admin-grid"></div>
+  </div>
 
 </div>
 
