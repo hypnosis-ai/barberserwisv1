@@ -830,6 +830,21 @@ function decisionText(v){
    KOLOR STATUSU
 ============================= */
 
+
+function normalizeItemStatus(status){
+  const s = String(status || "").trim();
+
+  if(
+    s === "Przyjęto" ||
+    s === "Diagnoza / wycena" ||
+    s === "Akceptacja"
+  ){
+    return "Przyjęto / diagnostyka";
+  }
+
+  return s || "Nowe zgłoszenie";
+}
+
 function statusClass(status){
 
   switch(status){
@@ -838,6 +853,7 @@ function statusClass(status){
       return "status-new";
 
     case "Przyjęto":
+    case "Przyjęto / diagnostyka":
       return "status-received";
 
     case "Diagnoza / wycena":
@@ -854,6 +870,9 @@ function statusClass(status){
 
     case "Odesłano":
       return "status-sent";
+
+    case "Bez naprawy / do odesłania":
+      return "status-cancelled";
 
     case "Anulowane":
       return "status-cancelled";
@@ -1303,15 +1322,14 @@ function renderRepairs(data){
                   <select id="item-status-${item.id}">
                     ${[
                       "Nowe zgłoszenie",
-                      "Przyjęto",
-                      "Diagnoza / wycena",
-                      "Akceptacja",
+                      "Przyjęto / diagnostyka",
                       "Naprawa",
                       "Gotowe",
+                      "Bez naprawy / do odesłania",
                       "Odesłano",
                       "Anulowane"
                     ].map(s =>
-                      `<option ${s === (item.status || "Nowe zgłoszenie") ? "selected" : ""}>${s}</option>`
+                      `<option ${s === normalizeItemStatus(item.status) ? "selected" : ""}>${s}</option>`
                     ).join("")}
                   </select>
                 </div>
@@ -1361,6 +1379,14 @@ function renderRepairs(data){
                   onclick="setQuickItemStatus('${item.id}','Gotowe')"
                 >
                   Ustaw: Gotowe
+                </button>
+
+                <button
+                  class="dark"
+                  type="button"
+                  onclick="setQuickItemStatus('${item.id}','Bez naprawy / do odesłania')"
+                >
+                  Ustaw: Bez naprawy / do odesłania
                 </button>
 
                 <button
