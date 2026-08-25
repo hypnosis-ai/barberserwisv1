@@ -1307,7 +1307,24 @@ function updateAccountUi(u){
       "Po zalogowaniu zobaczysz tutaj swoje zgłoszenia.";
   }
 }
-    function statusRank(status){const s=String(status||"").toLowerCase();if(s.includes("odesł")||s.includes("wysłan"))return 6;if(s.includes("gotow"))return 5;if(s.includes("napraw"))return 4;if(s.includes("akcept"))return 3;if(s.includes("wycen")||s.includes("diagno"))return 2;if(s.includes("odebran")||s.includes("przyję"))return 1;return 0}
+    function statusRank(status){
+      const s=String(status||"").toLowerCase();
+
+      if(s.includes("odesł")||s.includes("wysłan"))return 4;
+      if(s.includes("gotow"))return 3;
+      if(s.includes("napraw"))return 2;
+
+      if(
+        s.includes("przyję")||
+        s.includes("diagnost")||
+        s.includes("wycen")||
+        s.includes("akcept")||
+        s.includes("bez naprawy")||
+        s.includes("do odesłania")
+      )return 1;
+
+      return 0;
+    }
     async function loadRepairs(){
       const c=getSb();
       if(!c||!currentUser)return;
@@ -1350,7 +1367,7 @@ function updateAccountUi(u){
 
       e.textContent="";
       l.innerHTML="";
-      const steps=["Zgłoszenie","Przyjęto","Diagnoza / wycena","Akceptacja","Naprawa","Gotowe","Odesłano"];
+      const steps=["Zgłoszenie","Przyjęto / diagnostyka","Naprawa","Gotowe","Odesłano"];
 
       repairs.forEach(r=>{
         const card=document.createElement("div");
