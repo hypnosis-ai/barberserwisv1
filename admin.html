@@ -834,12 +834,16 @@ function decisionText(v){
 function normalizeItemStatus(status){
   const s = String(status || "").trim();
 
-  if(
-    s === "Przyjęto" ||
-    s === "Diagnoza / wycena" ||
-    s === "Akceptacja"
-  ){
-    return "Przyjęto / diagnostyka";
+  if(s === "Przyjęto" || s === "Przyjęto / diagnostyka"){
+    return "Przyjęto – oczekuje na diagnostykę";
+  }
+
+  if(s === "Diagnoza / wycena"){
+    return "Sprzęt jest w trakcie diagnostyki";
+  }
+
+  if(s === "Akceptacja"){
+    return "Wycena";
   }
 
   return s || "Nowe zgłoszenie";
@@ -854,9 +858,12 @@ function statusClass(status){
 
     case "Przyjęto":
     case "Przyjęto / diagnostyka":
+    case "Przyjęto – oczekuje na diagnostykę":
       return "status-received";
 
     case "Diagnoza / wycena":
+    case "Sprzęt jest w trakcie diagnostyki":
+    case "Wycena":
       return "status-diagnosis";
 
     case "Akceptacja":
@@ -1322,7 +1329,9 @@ function renderRepairs(data){
                   <select id="item-status-${item.id}">
                     ${[
                       "Nowe zgłoszenie",
-                      "Przyjęto / diagnostyka",
+                      "Przyjęto – oczekuje na diagnostykę",
+                      "Sprzęt jest w trakcie diagnostyki",
+                      "Wycena",
                       "Naprawa",
                       "Gotowe",
                       "Bez naprawy / do odesłania",
