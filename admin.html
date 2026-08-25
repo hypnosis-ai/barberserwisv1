@@ -2245,7 +2245,12 @@ async function saveRepairItem(itemId){
 
   msg.textContent = "Sprzęt zapisany ✅ E-mail nie został wysłany.";
 
-  setTimeout(loadAllRepairs,500);
+  // Nie przeładowujemy całej listy po zapisie sprzętu.
+  // Dzięki temu panel pozostaje dokładnie w miejscu, w którym pracuje administrator.
+  const totalInput = document.getElementById("quote-"+repair.id);
+  if(totalInput){
+    totalInput.value = totalQuote.toFixed(2) + " zł";
+  }
 }
 
 async function setQuickItemStatus(itemId,status){
