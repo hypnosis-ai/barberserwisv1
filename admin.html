@@ -560,6 +560,55 @@
       }
     }
 
+    /* ===== Szczegóły diagnostyki ===== */
+    .diagnostic-box{
+      margin-top:14px;
+      padding:14px;
+      border:1px solid #4b4030;
+      border-radius:12px;
+      background:#1b1916;
+    }
+    .diagnostic-title{
+      color:#e9b45e;
+      font-weight:800;
+      font-size:16px;
+      margin-bottom:10px;
+    }
+    .diagnostic-grid{
+      display:grid;
+      grid-template-columns:minmax(0,2fr) auto;
+      gap:8px;
+      align-items:end;
+      margin-bottom:10px;
+    }
+    .diagnostic-list{
+      display:flex;
+      flex-direction:column;
+      gap:7px;
+      margin:10px 0;
+    }
+    .diagnostic-issue{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:9px 10px;
+      background:#202129;
+      border:1px solid #343640;
+      border-radius:9px;
+    }
+    .diagnostic-issue span{line-height:1.4}
+    .diagnostic-note{min-height:105px}
+    .diagnostic-help{
+      color:#aaa;
+      font-size:12px;
+      line-height:1.5;
+      margin-top:8px;
+    }
+    @media(max-width:760px){
+      .diagnostic-grid{grid-template-columns:1fr}
+    }
+
 </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
 </head>
@@ -832,6 +881,8 @@ const sb =
 let allRepairs = [];
 let servicePriceList = [];
 let quoteLinesByItem = {};
+let diagnosticIssueCatalog = [];
+let diagnosticIssuesByItem = {};
 
 function quoteLineKey(){
   return "ql-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -1083,6 +1134,169 @@ async function saveQuoteLines(itemId){
 
 
 
+
+
+/* =============================
+   DIAGNOSTYKA SPRZĘTU
+============================= */
+
+function diagnosticCatalogOptions(){
+  const rows = diagnosticIssueCatalog.filter(x=>x.active !== false);
+  return `
+    <option value="">Wybierz wykryty problem</option>
+    ${rows.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("")}
+  `;
+}
+
+function getDiagnosticIssues(itemId){
+  return Array.isArray(diagnosticIssuesByItem[itemId]) ? diagnosticIssuesByItem[itemId] : [];
+}
+
+function renderDiagnosticIssues(itemId){
+  const box=document.getElementById("diagnostic-list-"+itemId);
+  if(!box) return;
+
+  const rows=getDiagnosticIssues(itemId);
+  box.innerHTML=rows.length
+    ? rows.map(row=>`
+        <div class="diagnostic-issue">
+          <span>${esc(row.description || "—")}</span>
+          <button
+            type="button"
+            class="danger"
+            style="padding:7px 10px;"
+            onclick="deleteDiagnosticIssue('${itemId}','${row.id}')"
+            title="Usuń problem"
+          >×</button>
+        </div>
+      `).join("")
+    : '<div class="muted">Nie dodano jeszcze wyników diagnostyki.</div>';
+}
+
+async function addDiagnosticIssueFromList(itemId){
+  const select=document.getElementById("diagnostic-select-"+itemId);
+  const catalogId=select?.value || "";
+  if(!catalogId) return;
+
+  const issue=diagnosticIssueCatalog.find(x=>String(x.id)===String(catalogId));
+  if(!issue) return;
+
+  const existing=getDiagnosticIssues(itemId).some(
+    x=>String(x.description||"").trim().toLowerCase()===String(issue.name||"").trim().toLowerCase()
+  );
+
+  if(existing){
+    select.value="";
+    document.getElementById("item-msg-"+itemId).textContent="Ten problem jest już dodany.";
+    return;
+  }
+
+  const msg=document.getElementById("item-msg-"+itemId);
+  msg.textContent="Zapisywanie problemu diagnostycznego…";
+
+  const {data,error}=await sb
+    .from("repair_item_diagnostic_issues")
+    .insert({
+      repair_item_id:itemId,
+      issue_catalog_id:issue.id,
+      description:issue.name,
+      sort_order:getDiagnosticIssues(itemId).length*10
+    })
+    .select("id,repair_item_id,issue_catalog_id,description,sort_order,created_at")
+    .single();
+
+  if(error){
+    msg.textContent="Błąd zapisu problemu: "+error.message;
+    return;
+  }
+
+  (diagnosticIssuesByItem[itemId] ||= []).push(data);
+  select.value="";
+  renderDiagnosticIssues(itemId);
+  msg.textContent="Problem zapisany automatycznie ✅";
+}
+
+async function addCustomDiagnosticIssue(itemId){
+  const input=document.getElementById("diagnostic-custom-"+itemId);
+  const description=input?.value.trim() || "";
+  const msg=document.getElementById("item-msg-"+itemId);
+
+  if(!description){
+    alert("Wpisz własny problem diagnostyczny.");
+    return;
+  }
+
+  msg.textContent="Zapisywanie problemu diagnostycznego…";
+
+  const {data,error}=await sb
+    .from("repair_item_diagnostic_issues")
+    .insert({
+      repair_item_id:itemId,
+      issue_catalog_id:null,
+      description,
+      sort_order:getDiagnosticIssues(itemId).length*10
+    })
+    .select("id,repair_item_id,issue_catalog_id,description,sort_order,created_at")
+    .single();
+
+  if(error){
+    msg.textContent="Błąd zapisu problemu: "+error.message;
+    return;
+  }
+
+  (diagnosticIssuesByItem[itemId] ||= []).push(data);
+  input.value="";
+  renderDiagnosticIssues(itemId);
+  msg.textContent="Własny problem zapisany ✅";
+}
+
+async function deleteDiagnosticIssue(itemId,issueId){
+  if(!confirm("Usunąć ten problem z diagnostyki?")) return;
+
+  const msg=document.getElementById("item-msg-"+itemId);
+  const {error}=await sb
+    .from("repair_item_diagnostic_issues")
+    .delete()
+    .eq("id",issueId);
+
+  if(error){
+    msg.textContent="Błąd usuwania problemu: "+error.message;
+    return;
+  }
+
+  diagnosticIssuesByItem[itemId]=getDiagnosticIssues(itemId).filter(x=>String(x.id)!==String(issueId));
+  renderDiagnosticIssues(itemId);
+  msg.textContent="Problem usunięty.";
+}
+
+async function saveDiagnosticNote(itemId){
+  const note=document.getElementById("diagnostic-note-"+itemId)?.value.trim() || "";
+  const msg=document.getElementById("item-msg-"+itemId);
+
+  msg.textContent="Zapisywanie szczegółów diagnostyki…";
+
+  const {error}=await sb
+    .from("repair_items")
+    .update({
+      diagnostic_note:note || null,
+      diagnostic_completed_at:new Date().toISOString()
+    })
+    .eq("id",itemId);
+
+  if(error){
+    msg.textContent="Błąd zapisu diagnostyki: "+error.message;
+    return;
+  }
+
+  const repair=getRepairByItemId(itemId);
+  const localItem=repair?.items?.find(x=>String(x.id)===String(itemId));
+  if(localItem){
+    localItem.diagnostic_note=note || null;
+    localItem.diagnostic_completed_at=new Date().toISOString();
+  }
+
+  msg.textContent="Szczegóły diagnostyki zapisane ✅";
+}
 
 /* =============================
    GALERIA ADMINISTRATORA
@@ -1739,6 +1953,26 @@ async function loadAllRepairs(){
 
   servicePriceList = Array.isArray(priceData) ? priceData : [];
 
+  const {data:diagnosticCatalogData,error:diagnosticCatalogError} =
+    await sb
+      .from("diagnostic_issue_catalog")
+      .select("id,name,active,sort_order")
+      .eq("active",true)
+      .order("sort_order",{ascending:true})
+      .order("name",{ascending:true});
+
+  if(diagnosticCatalogError){
+    box.innerHTML =
+      '<div class="panel">Nie udało się pobrać listy problemów diagnostycznych: '
+      + esc(diagnosticCatalogError.message)
+      + '</div>';
+    return;
+  }
+
+  diagnosticIssueCatalog = Array.isArray(diagnosticCatalogData)
+    ? diagnosticCatalogData
+    : [];
+
 
   const {data,error} =
     await sb.rpc("admin_list_repairs");
@@ -1772,7 +2006,7 @@ async function loadAllRepairs(){
     const {data:itemsData,error:itemsError} =
       await sb
         .from("repair_items")
-        .select("id,repair_id,item_no,device_name,model,issue_type,problem,status,quote_amount,admin_note,quote_decision")
+        .select("id,repair_id,item_no,device_name,model,issue_type,problem,status,quote_amount,admin_note,quote_decision,diagnostic_note,diagnostic_completed_at")
         .in("repair_id",repairIds)
         .order("item_no",{ascending:true});
 
@@ -1818,6 +2052,29 @@ async function loadAllRepairs(){
         (quoteLinesByItem[line.repair_item_id] ||= []).push(line);
       });
 
+      diagnosticIssuesByItem = {};
+      itemIds.forEach(id => diagnosticIssuesByItem[id] = []);
+
+      const {data:diagnosticIssuesData,error:diagnosticIssuesError} =
+        await sb
+          .from("repair_item_diagnostic_issues")
+          .select("id,repair_item_id,issue_catalog_id,description,sort_order,created_at")
+          .in("repair_item_id",itemIds)
+          .order("sort_order",{ascending:true})
+          .order("created_at",{ascending:true});
+
+      if(diagnosticIssuesError){
+        box.innerHTML =
+          '<div class="panel">Nie udało się pobrać szczegółów diagnostyki: '
+          + esc(diagnosticIssuesError.message)
+          + '</div>';
+        return;
+      }
+
+      (diagnosticIssuesData || []).forEach(row=>{
+        (diagnosticIssuesByItem[row.repair_item_id] ||= []).push(row);
+      });
+
       // Kompatybilność ze starymi wycenami:
       // jeśli sprzęt ma starą quote_amount, ale nie ma jeszcze pozycji kosztorysu,
       // pokazujemy ją jako jedną tymczasową pozycję "Dotychczasowa wycena".
@@ -1845,6 +2102,7 @@ async function loadAllRepairs(){
   }else{
     allRepairs.forEach(r => r.items = []);
     quoteLinesByItem = {};
+    diagnosticIssuesByItem = {};
   }
 
 
@@ -2103,14 +2361,17 @@ function renderRepairs(data){
                       "Bez naprawy / do odesłania",
                       "Odesłano",
                       "Anulowane"
-                    ].map(s =>
-                      `<option ${s === normalizeItemStatus(item.status) ? "selected" : ""}>${s}</option>`
-                    ).join("")}
+                    ].map(s => {
+                      const label = s === "Wycena"
+                        ? "Szczegóły diagnostyki i wycena"
+                        : s;
+                      return `<option value="${esc(s)}" ${s === normalizeItemStatus(item.status) ? "selected" : ""}>${esc(label)}</option>`;
+                    }).join("")}
                   </select>
                 </div>
 
                 <div>
-                  <label>Wycena sprzętu – suma kosztorysu (zł)</label>
+                  <label>Łączna wycena sprzętu (zł)</label>
                   <input
                     id="item-quote-${item.id}"
                     type="number"
@@ -2129,6 +2390,92 @@ function renderRepairs(data){
                   >${esc(item.admin_note || "")}</textarea>
                 </div>
 
+              </div>
+
+              <div class="diagnostic-box">
+                <div class="diagnostic-title">
+                  Szczegóły diagnostyki i wycena
+                </div>
+
+                <div class="diagnostic-grid">
+                  <div>
+                    <label>Wykryty problem</label>
+                    <select
+                      id="diagnostic-select-${item.id}"
+                      onchange="addDiagnosticIssueFromList('${item.id}')"
+                    >
+                      ${diagnosticCatalogOptions()}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label>&nbsp;</label>
+                    <span class="muted">Wybór z listy zapisuje się automatycznie.</span>
+                  </div>
+                </div>
+
+                <div
+                  class="diagnostic-list"
+                  id="diagnostic-list-${item.id}"
+                >
+                  ${getDiagnosticIssues(item.id).length
+                    ? getDiagnosticIssues(item.id).map(row=>`
+                        <div class="diagnostic-issue">
+                          <span>${esc(row.description || "—")}</span>
+                          <button
+                            type="button"
+                            class="danger"
+                            style="padding:7px 10px;"
+                            onclick="deleteDiagnosticIssue('${item.id}','${row.id}')"
+                            title="Usuń problem"
+                          >×</button>
+                        </div>
+                      `).join("")
+                    : '<div class="muted">Nie dodano jeszcze wyników diagnostyki.</div>'
+                  }
+                </div>
+
+                <div class="diagnostic-grid">
+                  <div>
+                    <label>Własny wykryty problem</label>
+                    <input
+                      id="diagnostic-custom-${item.id}"
+                      type="text"
+                      placeholder="Np. Pęknięte mocowanie ostrza"
+                    >
+                  </div>
+                  <button
+                    type="button"
+                    class="dark"
+                    onclick="addCustomDiagnosticIssue('${item.id}')"
+                  >
+                    Dodaj problem
+                  </button>
+                </div>
+
+                <div>
+                  <label>Szczegóły / wynik diagnostyki</label>
+                  <textarea
+                    class="diagnostic-note"
+                    id="diagnostic-note-${item.id}"
+                    placeholder="Opisz stan sprzętu, wykonane pomiary, wykryte uszkodzenia i zalecenia."
+                  >${esc(item.diagnostic_note || "")}</textarea>
+                </div>
+
+                <div class="actions">
+                  <button
+                    type="button"
+                    class="gold"
+                    onclick="saveDiagnosticNote('${item.id}')"
+                  >
+                    Zapisz szczegóły diagnostyki
+                  </button>
+                </div>
+
+                <div class="diagnostic-help">
+                  Diagnostyka jest częścią kosztorysu. Pozycję „Diagnostyka – 30 zł”
+                  dodajesz z cennika poniżej. Cena i kosztorys nadal wymagają ręcznego zapisu.
+                </div>
               </div>
 
               <div class="quote-builder">
