@@ -648,6 +648,73 @@
     @media (max-width:800px){.gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media (max-width:520px){.gallery-grid{grid-template-columns:1fr}}
 
+
+    /* ===== Kafelki naprawy 3 + 2 ===== */
+    #jak-to-dziala .steps-grid{
+      display:grid;
+      grid-template-columns:repeat(6,minmax(0,1fr));
+      gap:22px;
+    }
+
+    #jak-to-dziala .steps-grid .step{
+      grid-column:span 2;
+      height:100%;
+    }
+
+    #jak-to-dziala .steps-grid .step:nth-child(4){
+      grid-column:2 / span 2;
+    }
+
+    #jak-to-dziala .steps-grid .step:nth-child(5){
+      grid-column:4 / span 2;
+    }
+
+    /* ===== Krótszy formularz klienta ===== */
+    #formularz .client-form-grid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:14px 16px;
+      margin-bottom:18px;
+    }
+
+    #formularz .client-form-grid input{
+      margin:0;
+    }
+
+    #formularz .client-form-grid .form-full{
+      grid-column:1 / -1;
+    }
+
+    #formularz .return-address-note{
+      text-align:center;
+      color:#bbb;
+      margin:8px 0 0;
+      line-height:1.45;
+    }
+
+    @media (max-width:900px){
+      #jak-to-dziala .steps-grid{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+      }
+
+      #jak-to-dziala .steps-grid .step,
+      #jak-to-dziala .steps-grid .step:nth-child(4),
+      #jak-to-dziala .steps-grid .step:nth-child(5){
+        grid-column:auto;
+      }
+    }
+
+    @media (max-width:768px){
+      #jak-to-dziala .steps-grid,
+      #formularz .client-form-grid{
+        grid-template-columns:1fr;
+      }
+
+      #formularz .client-form-grid .form-full{
+        grid-column:auto;
+      }
+    }
+
 </style>
   <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18034553646">
@@ -772,7 +839,7 @@ Naprawiam sprzęt barberów i użytkowników domowych: Wahl, Andis, Babyliss, Pa
  <div class="step">
           <div class="step-number">3</div>
           <h4>Wycena naprawy</h4>
-          <p>Wyceniamy koszt naprawy informujemy.</p>
+          <p>Przedstawiam koszt naprawy i czekam na decyzję klienta.</p>
         </div>
         <div class="step">
           <div class="step-number">4</div>
@@ -799,57 +866,63 @@ Naprawiam sprzęt barberów i użytkowników domowych: Wahl, Andis, Babyliss, Pa
     <div class="form-box">
       <form onsubmit="submitRepair(event)">
 
-        <input
+        
+        <div class="client-form-grid">
+          <input
           type="text"
           id="firstName"
           placeholder="Imię"
           required
         >
 
-        <input
+          <input
           type="text"
           id="lastName"
           placeholder="Nazwisko"
           required
         >
 
-        <input
+          <input
           type="tel"
           id="phone"
           placeholder="Telefon"
           required
         >
 
-        <input
+          <input
           type="text"
           id="tracking"
           placeholder="Numer przesyłki"
         >
 
-        <p style="color:#bbb;text-align:center;margin:12px 0 2px;">
-          Podaj adres, na który ma zostać odesłany naprawiony sprzęt.
-        </p>
+          <p class="return-address-note form-full">
+            Podaj adres, na który ma zostać odesłany naprawiony sprzęt.
+          </p>
 
-        <input
+          <div class="form-full">
+            <input
           type="text"
           id="returnAddress"
           placeholder="Adres do zwrotu – ulica i numer"
           required
         >
+          </div>
 
-        <input
+          <input
           type="text"
           id="returnPostalCode"
           placeholder="Kod pocztowy"
           required
         >
 
-        <input
+          <input
           type="text"
           id="returnCity"
           placeholder="Miasto"
           required
         >
+        </div>
+
 
         <div style="margin-top:18px;text-align:center;">
           <strong style="color:#e0b36a;font-size:20px;">
