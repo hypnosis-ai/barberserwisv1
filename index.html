@@ -715,6 +715,26 @@
       }
     }
 
+
+    .scroll-top-btn{
+      position:fixed;
+      right:20px;
+      bottom:20px;
+      z-index:9999;
+      width:48px;
+      height:48px;
+      border:none;
+      border-radius:50%;
+      cursor:pointer;
+      font-size:24px;
+      font-weight:700;
+      line-height:48px;
+      text-align:center;
+      box-shadow:0 4px 14px rgba(0,0,0,.28);
+      opacity:.9;
+    }
+    .scroll-top-btn:hover{opacity:1}
+
 </style>
   <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18034553646">
@@ -2049,6 +2069,32 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
 });
 
+</script>
+
+
+<button
+  type="button"
+  class="scroll-top-btn"
+  title="Przewiń do góry"
+  aria-label="Przewiń do góry"
+  onclick="window.scrollTo({top:0,behavior:'smooth'})"
+>↑</button>
+
+
+<script>
+  if ("scrollRestoration" in history) {
+    history.scrollRestoration = "manual";
+  }
+
+  window.addEventListener("pageshow", function () {
+    window.scrollTo(0, 0);
+  });
+
+  window.addEventListener("load", function () {
+    setTimeout(function () {
+      window.scrollTo(0, 0);
+    }, 0);
+  });
 </script>
 
 </body>
