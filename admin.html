@@ -441,7 +441,7 @@
     }
     .quote-line{
       display:grid;
-      grid-template-columns:minmax(0,2fr) 90px 130px 44px;
+      grid-template-columns:minmax(0,2fr) 130px 44px;
       gap:8px;
       align-items:center;
     }
@@ -488,7 +488,7 @@
     }
     @media(max-width:760px){
       .quote-line{
-        grid-template-columns:1fr 80px 110px 42px;
+        grid-template-columns:1fr 110px 42px;
       }
       .quote-line .quote-line-total{
         grid-column:1/-1;
@@ -763,10 +763,8 @@ function getQuoteLines(itemId){
 
 function quoteItemTotal(itemId){
   return getQuoteLines(itemId).reduce((sum,line)=>{
-    const qty = Number(line.quantity ?? 1);
     const price = Number(line.unit_price ?? 0);
-    const total = (Number.isFinite(qty) ? qty : 0) * (Number.isFinite(price) ? price : 0);
-    return sum + total;
+    return sum + (Number.isFinite(price) ? price : 0);
   },0);
 }
 
@@ -798,11 +796,7 @@ function renderQuoteLines(itemId){
       const key = line._key || line.id || quoteLineKey();
       line._key = key;
 
-      const qty = Number(line.quantity ?? 1);
       const price = Number(line.unit_price ?? 0);
-      const lineTotal =
-        (Number.isFinite(qty) ? qty : 0) *
-        (Number.isFinite(price) ? price : 0);
 
       return `
         <div class="quote-line" data-key="${esc(key)}">
@@ -815,20 +809,11 @@ function renderQuoteLines(itemId){
 
           <input
             type="number"
-            min="0.01"
-            step="0.01"
-            value="${Number.isFinite(qty) ? qty : 1}"
-            oninput="updateQuoteLine('${itemId}','${key}','quantity',this.value)"
-            title="Ilość"
-          >
-
-          <input
-            type="number"
             min="0"
             step="0.01"
             value="${Number.isFinite(price) ? price.toFixed(2) : "0.00"}"
             oninput="updateQuoteLine('${itemId}','${key}','unit_price',this.value)"
-            title="Cena jednostkowa"
+            title="Cena"
           >
 
           <button
@@ -840,7 +825,7 @@ function renderQuoteLines(itemId){
           >×</button>
 
           <div class="quote-line-total">
-            Razem pozycja: ${lineTotal.toFixed(2)} zł
+            Cena pozycji: ${Number.isFinite(price) ? price.toFixed(2) : "0.00"} zł
           </div>
         </div>
       `;
@@ -873,7 +858,7 @@ function updateQuoteLine(itemId,key,field,value){
   const line = getQuoteLines(itemId).find(x => String(x._key || x.id) === String(key));
   if(!line) return;
 
-  if(field === "quantity" || field === "unit_price"){
+  if(field === "unit_price"){
     const n = Number(value);
     line[field] = Number.isFinite(n) ? n : 0;
   }else{
@@ -997,7 +982,7 @@ async function saveQuoteLines(itemId){
       repair_item_id:itemId,
       price_list_id:line.price_list_id || null,
       description:String(line.description || "").trim(),
-      quantity:Number(line.quantity ?? 1) || 1,
+      quantity:1,
       unit_price:Number(line.unit_price ?? 0) || 0,
       sort_order:index * 10
     }));
