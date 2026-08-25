@@ -1563,6 +1563,14 @@ function renderRepairs(data){
 
         <button
           class="dark"
+          onclick="sendRepairEmail('${r.id}')"
+        >
+          Wyślij e-mail do klienta
+        </button>
+
+
+        <button
+          class="dark"
           onclick="setQuickStatus('${r.id}','Naprawa')"
         >
           Ustaw: Naprawa
@@ -1710,54 +1718,9 @@ async function saveRepairItem(itemId){
     return;
   }
 
-  const {error:mailError} =
-    await sb.functions.invoke("swift-responder",{
-      body:{
-        repair_id:repair.id,
-        item_id:itemId
-      }
-    });
+  msg.textContent = "Sprzęt zapisany ✅ E-mail nie został wysłany.";
 
-  if(mailError){
-    msg.textContent =
-      "Sprzęt zapisany, suma zaktualizowana, ale e-mail nie został wysłany: "
-      + mailError.message;
-
-    setTimeout(loadAllRepairs,700);
-    return;
-  }
-
-  // Dodatkowy mail statusowy do klienta tylko po faktycznej zmianie
-  // na Naprawa / Gotowe / Odesłano.
-  const statusNeedsNotify =
-    statusChanged &&
-    ["Naprawa","Gotowe","Odesłano"].includes(status);
-
-  if(statusNeedsNotify){
-    const {error:statusMailError} =
-      await sb.functions.invoke("repair-status-notify",{
-        body:{
-          repair_id:repair.id,
-          item_id:itemId
-        }
-      });
-
-    if(statusMailError){
-      msg.textContent =
-        "Sprzęt zapisany i podstawowy e-mail wysłany, ale powiadomienie o statusie nie zostało wysłane: "
-        + statusMailError.message;
-
-      setTimeout(loadAllRepairs,700);
-      return;
-    }
-  }
-
-  msg.textContent =
-    statusNeedsNotify
-      ? "Sprzęt zapisany i e-maile wysłane ✅"
-      : "Sprzęt zapisany, suma zaktualizowana i e-mail wysłany ✅";
-
-  setTimeout(loadAllRepairs,700);
+  setTimeout(loadAllRepairs,500);
 }
 
 async function setQuickItemStatus(itemId,status){
@@ -1792,40 +1755,6 @@ async function saveRepair(id){
 
   msg.textContent = "Zapisywanie…";
 
-
-  // Znajdź poprzednią wersję zgłoszenia
-  const oldRepair =
-    allRepairs.find(r => String(r.id) === String(id));
-
-
-  if(!oldRepair){
-    msg.textContent = "Błąd: nie znaleziono zgłoszenia.";
-    return;
-  }
-
-
-  // Sprawdzamy, czy zmieniło się coś ważnego dla klienta
-  const statusChanged =
-    (oldRepair.status || "") !== (status || "");
-
-  const quoteChanged =
-    Number(oldRepair.quote_amount ?? 0) !== Number(quote ?? 0);
-
-  const noteChanged =
-    (oldRepair.admin_note || "") !== (note || "");
-
-  const trackingChanged =
-    (oldRepair.tracking || "") !== (tracking || "");
-
-
-  const shouldSendEmail =
-    statusChanged ||
-    quoteChanged ||
-    noteChanged ||
-    trackingChanged;
-
-
-  // Zapis do Supabase
   const {error} =
     await sb.rpc("admin_update_repair",{
       p_id:id,
@@ -1835,49 +1764,61 @@ async function saveRepair(id){
       p_tracking:tracking
     });
 
-
   if(error){
     msg.textContent = "Błąd: " + error.message;
     return;
   }
 
+  const localRepair =
+    allRepairs.find(r => String(r.id) === String(id));
 
-  // Jeśli nic ważnego się nie zmieniło,
-  // nie wysyłamy kolejnego maila
-  if(!shouldSendEmail){
+  if(localRepair){
+    localRepair.status = status;
+    localRepair.quote_amount = quote;
+    localRepair.admin_note = note;
+    localRepair.tracking = tracking;
+  }
 
-    msg.textContent =
-      "Zapisano ✅ E-mail nie był potrzebny.";
+  msg.textContent = "Zmiany zapisane ✅ E-mail nie został wysłany.";
 
-    setTimeout(loadAllRepairs,500);
+  setTimeout(loadAllRepairs,500);
+}
+
+
+async function sendRepairEmail(id){
+
+  const repair =
+    allRepairs.find(r => String(r.id) === String(id));
+
+  if(!repair){
+    alert("Nie znaleziono zgłoszenia.");
     return;
   }
 
+  const msg =
+    document.getElementById("msg-"+id);
 
-  // Wysyłanie maila
-  const {error: mailError} =
+  if(!confirm("Wysłać klientowi jeden zbiorczy e-mail z aktualnym stanem całego zgłoszenia?")){
+    return;
+  }
+
+  msg.textContent = "Wysyłanie e-maila…";
+
+  const {error} =
     await sb.functions.invoke("swift-responder",{
       body:{
         repair_id:id
       }
     });
 
-
-  if(mailError){
-
+  if(error){
     msg.textContent =
-      "Zapisano, ale e-mail nie został wysłany: "
-      + mailError.message;
-
-    setTimeout(loadAllRepairs,500);
+      "Nie udało się wysłać e-maila: " + error.message;
     return;
   }
 
-
   msg.textContent =
-    "Zapisano i wysłano e-mail ✅";
-
-  setTimeout(loadAllRepairs,500);
+    "Zbiorczy e-mail do klienta wysłany ✅";
 }
 
 
