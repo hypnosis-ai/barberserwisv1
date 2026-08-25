@@ -1640,6 +1640,10 @@ async function saveRepairItem(itemId){
     return;
   }
 
+  const oldItem = repair.items.find(item => String(item.id) === String(itemId));
+  const oldStatus = oldItem?.status || "";
+  const statusChanged = oldStatus !== status;
+
   const {error} =
     await sb.rpc("admin_update_repair_item",{
       p_item_id:itemId,
@@ -1697,8 +1701,35 @@ async function saveRepairItem(itemId){
     return;
   }
 
+  // Dodatkowy mail statusowy do klienta tylko po faktycznej zmianie
+  // na Naprawa / Gotowe / Odesłano.
+  const statusNeedsNotify =
+    statusChanged &&
+    ["Naprawa","Gotowe","Odesłano"].includes(status);
+
+  if(statusNeedsNotify){
+    const {error:statusMailError} =
+      await sb.functions.invoke("repair-status-notify",{
+        body:{
+          repair_id:repair.id,
+          item_id:itemId
+        }
+      });
+
+    if(statusMailError){
+      msg.textContent =
+        "Sprzęt zapisany i podstawowy e-mail wysłany, ale powiadomienie o statusie nie zostało wysłane: "
+        + statusMailError.message;
+
+      setTimeout(loadAllRepairs,700);
+      return;
+    }
+  }
+
   msg.textContent =
-    "Sprzęt zapisany, suma zaktualizowana i e-mail wysłany ✅";
+    statusNeedsNotify
+      ? "Sprzęt zapisany i e-maile wysłane ✅"
+      : "Sprzęt zapisany, suma zaktualizowana i e-mail wysłany ✅";
 
   setTimeout(loadAllRepairs,700);
 }
