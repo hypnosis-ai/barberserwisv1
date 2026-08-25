@@ -117,35 +117,8 @@
       font-size:13px
     }
 
-    .decision-ok,
-    .decision-no,
-    .decision-wait{
-      display:block;
-      margin-top:8px;
-      padding:11px 14px;
-      border-radius:10px;
-      font-size:13px;
-      font-weight:900;
-      letter-spacing:.2px;
-    }
-
-    .decision-ok{
-      color:#a8f0bb;
-      background:rgba(38,126,68,.22);
-      border:1px solid rgba(92,211,126,.55);
-    }
-
-    .decision-no{
-      color:#ffb0b0;
-      background:rgba(145,48,48,.22);
-      border:1px solid rgba(255,106,106,.55);
-    }
-
-    .decision-wait{
-      color:#d7d7da;
-      background:#292b33;
-      border:1px solid #454852;
-    }
+    .decision-ok{color:#7fd59a}
+    .decision-no{color:#ff9a9a}
 
     .msg{
       margin-top:10px;
@@ -832,7 +805,7 @@ function decisionText(v){
 
     return `
       <span class="decision-ok">
-        🟢 KLIENT ZAAKCEPTOWAŁ WYCENĘ
+        Zaakceptowana ✅
       </span>
     `;
 
@@ -842,17 +815,13 @@ function decisionText(v){
 
     return `
       <span class="decision-no">
-        🔴 KLIENT ODRZUCIŁ WYCENĘ
+        Odrzucona ❌
       </span>
     `;
 
   }
 
-  return `
-    <span class="decision-wait">
-      ⚪ OCZEKIWANIE NA DECYZJĘ KLIENTA
-    </span>
-  `;
+  return "Brak decyzji";
 
 }
 
@@ -1474,9 +1443,6 @@ function renderRepairs(data){
         ${esc(r.return_address || "—")},
         ${esc(r.return_city || "—")}
         <br>
-
-        <strong>Decyzja wyceny:</strong>
-        ${decisionText(r.quote_decision)}
 
       </div>
 
