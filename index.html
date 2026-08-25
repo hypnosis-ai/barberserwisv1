@@ -1310,15 +1310,15 @@ function updateAccountUi(u){
     function statusRank(status){
       const s=String(status||"").toLowerCase();
 
-      if(s.includes("odesł")||s.includes("wysłan"))return 4;
-      if(s.includes("gotow"))return 3;
-      if(s.includes("napraw"))return 2;
+      if(s.includes("odesł")||s.includes("wysłan"))return 6;
+      if(s.includes("gotow"))return 5;
+      if(s.includes("napraw"))return 4;
+      if(s === "wycena" || s.includes("akcept"))return 3;
+      if(s.includes("w trakcie diagnostyki") || s.includes("diagnoza / wycena"))return 2;
 
       if(
         s.includes("przyję")||
-        s.includes("diagnost")||
-        s.includes("wycen")||
-        s.includes("akcept")||
+        s.includes("oczekuje na diagnostykę")||
         s.includes("bez naprawy")||
         s.includes("do odesłania")
       )return 1;
@@ -1367,7 +1367,15 @@ function updateAccountUi(u){
 
       e.textContent="";
       l.innerHTML="";
-      const steps=["Zgłoszenie","Przyjęto / diagnostyka","Naprawa","Gotowe","Odesłano"];
+      const steps=[
+        "Zgłoszenie",
+        "Przyjęto – oczekuje na diagnostykę",
+        "Sprzęt jest w trakcie diagnostyki",
+        "Wycena",
+        "Naprawa",
+        "Gotowe",
+        "Odesłano"
+      ];
 
       repairs.forEach(r=>{
         const card=document.createElement("div");
@@ -1583,6 +1591,7 @@ function deviceProblemOptions(){
     <option value="">Wybierz rodzaj problemu</option>
     <option>Słabo tnie</option>
     <option>Szarpie włosy</option>
+    <option>Głośno chodzi</option>
     <option>Nie włącza się</option>
     <option>Problem z ostrzem</option>
     <option>Problem po upadku</option>
