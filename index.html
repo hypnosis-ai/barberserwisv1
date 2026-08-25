@@ -1832,13 +1832,58 @@ function toggleInvoiceFields(){
     const ticketNo =
       data?.[0]?.ticket_no || "—";
 
+    // Odszukujemy ID właśnie utworzonego zgłoszenia.
+    // Nie opieramy się na tym, czy RPC zwraca ID — wystarczy unikalny ticket_no.
+    let notificationWarning = "";
+
+    if(ticketNo !== "—"){
+      const {data:createdRepair,error:createdRepairError} =
+        await c
+          .from("repairs")
+          .select("id")
+          .eq("ticket_no",ticketNo)
+          .eq("user_id",user.id)
+          .single();
+
+      if(createdRepairError || !createdRepair?.id){
+        console.error(
+          "Nie udało się odszukać zgłoszenia do powiadomienia:",
+          createdRepairError
+        );
+
+        notificationWarning =
+          "\n\nZgłoszenie zapisano, ale nie udało się przygotować powiadomień e-mail.";
+      }else{
+        const {error:notifyError} =
+          await c.functions.invoke(
+            "new-repair-notify",
+            {
+              body:{
+                repair_id:createdRepair.id
+              }
+            }
+          );
+
+        if(notifyError){
+          console.error(
+            "Błąd powiadomienia o nowym zgłoszeniu:",
+            notifyError
+          );
+
+          notificationWarning =
+            "\n\nZgłoszenie zapisano, ale wystąpił problem z wysłaniem powiadomień e-mail.";
+        }
+      }
+    }
+
     alert(
       "Zgłoszenie zapisane.\n\n" +
       "Numer: " +
       ticketNo +
       "\n" +
       "Liczba sprzętów: " +
-      items.length
+      items.length +
+      notificationWarning
     );
 
     e.target.reset();
