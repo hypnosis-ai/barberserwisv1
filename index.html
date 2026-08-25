@@ -1506,7 +1506,7 @@ function addRepairDevice(){
       <div class="repair-device-title">Sprzęt</div>
       <button
         type="button"
-        class="remove-device"
+        class="device-remove-btn remove-device"
         onclick="removeRepairDevice(this)"
       >
         Usuń
@@ -1516,14 +1516,14 @@ function addRepairDevice(){
     <input
       type="text"
       class="device-name"
-      placeholder="Nazwa sprzętu, np. Wahl,Andis,JRL,BaByliss..."
+      placeholder="Nazwa sprzętu, np. maszynka, trymer, golarka"
       required
     >
 
     <input
       type="text"
       class="device-model"
-      placeholder="Model, np. Nr.seryjny."
+      placeholder="Marka i model, np. Wahl Magic Clip"
       required
       style="margin-top:12px;"
     >
@@ -1583,6 +1583,17 @@ function getRepairDevices(){
     issue_type: device.querySelector(".device-issue").value,
     problem: device.querySelector(".device-problem").value.trim()
   }));
+}
+
+
+function updateDeviceRemoveButtons(){
+  const devices = Array.from(document.querySelectorAll("#repairDevices .repair-device"));
+  devices.forEach((device,index)=>{
+    const btn = device.querySelector(".device-remove-btn");
+    if(btn){
+      btn.style.display = (devices.length > 1 && index > 0) ? "" : "none";
+    }
+  });
 }
 
 function resetRepairDevices(){
@@ -1870,7 +1881,17 @@ if(document.readyState === "loading"){
     addRepairDevice();
   }
 }
-  </script>
+  
+document.addEventListener("DOMContentLoaded",()=>{
+  const repairDevices=document.getElementById("repairDevices");
+  if(repairDevices){
+    const removeButtonsObserver=new MutationObserver(updateDeviceRemoveButtons);
+    removeButtonsObserver.observe(repairDevices,{childList:true,subtree:true});
+    updateDeviceRemoveButtons();
+  }
+});
+
+</script>
 
 </body>
 </html>
