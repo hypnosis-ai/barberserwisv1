@@ -356,6 +356,60 @@
     .gallery-admin-actions{display:flex;gap:8px;flex-wrap:wrap}
     .gallery-admin-actions button{padding:8px 10px}
     .gallery-hidden-badge{color:#ffcf76;font-weight:700;font-size:12px}
+    .gallery-admin-caption-edit{
+      width:100%;
+      margin-bottom:10px;
+      background:#18191f;
+    }
+    .gallery-crop-modal{
+      position:fixed;
+      inset:0;
+      z-index:20000;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      background:rgba(0,0,0,.82);
+    }
+    .gallery-crop-modal.hidden{display:none}
+    .gallery-crop-dialog{
+      width:min(920px,96vw);
+      max-height:94vh;
+      overflow:auto;
+      background:#18191f;
+      border:1px solid #3a3c46;
+      border-radius:16px;
+      padding:18px;
+      box-shadow:0 16px 60px rgba(0,0,0,.55);
+    }
+    .gallery-crop-dialog h3{
+      margin:0 0 8px;
+      color:#e9b45e;
+    }
+    .gallery-crop-help{
+      margin:0 0 14px;
+      color:#bbb;
+      font-size:13px;
+    }
+    .gallery-crop-stage{
+      width:100%;
+      min-height:320px;
+      max-height:65vh;
+      background:#0d0e12;
+      overflow:hidden;
+      border-radius:10px;
+    }
+    .gallery-crop-stage img{
+      display:block;
+      max-width:100%;
+    }
+    .gallery-crop-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+      margin-top:14px;
+    }
     @media(max-width:800px){
       .gallery-upload-grid{grid-template-columns:1fr}
       .gallery-admin-grid{grid-template-columns:1fr 1fr}
@@ -507,6 +561,7 @@
     }
 
 </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
 </head>
 
 <body>
@@ -734,10 +789,29 @@
     <div id="galleryAdminGrid" class="gallery-admin-grid"></div>
   </div>
 
+  <div id="galleryCropModal" class="gallery-crop-modal hidden" aria-hidden="true">
+    <div class="gallery-crop-dialog">
+      <h3>Przytnij zdjęcie</h3>
+      <p class="gallery-crop-help">
+        Przesuwaj zdjęcie i ramkę. Zapisany kadr będzie miał proporcje 4:3,
+        takie jak zdjęcia w galerii.
+      </p>
+      <div class="gallery-crop-stage">
+        <img id="galleryCropImage" alt="Zdjęcie do przycięcia">
+      </div>
+      <div class="gallery-crop-actions">
+        <button type="button" class="dark" onclick="closeGalleryCrop()">Anuluj</button>
+        <button type="button" class="gold" id="galleryCropSaveBtn" onclick="saveGalleryCrop()">Zapisz przycięcie</button>
+      </div>
+      <div id="galleryCropMsg" class="msg"></div>
+    </div>
+  </div>
+
 </div>
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
 
 <script>
 
@@ -1013,6 +1087,11 @@ async function saveQuoteLines(itemId){
 /* =============================
    GALERIA ADMINISTRATORA
 ============================= */
+
+let galleryCropper = null;
+let galleryCropPath = "";
+let galleryCropObjectUrl = "";
+
 async function loadGalleryAdmin(){
   const box=document.getElementById("galleryAdminGrid");
   if(!box) return;
@@ -1033,19 +1112,37 @@ async function loadGalleryAdmin(){
     return;
   }
 
+  const cacheBust=Date.now();
+
   box.innerHTML=data.map(item=>{
     const {data:urlData}=sb.storage.from("gallery").getPublicUrl(item.storage_path);
-    const url=urlData?.publicUrl||"";
-    const media=item.media_type==="video"
+    const baseUrl=urlData?.publicUrl||"";
+    const url=baseUrl ? `${baseUrl}?v=${cacheBust}` : "";
+    const isVideo=item.media_type==="video";
+
+    const media=isVideo
       ? `<video class="gallery-admin-media" controls preload="metadata"><source src="${esc(url)}"></video>`
       : `<img class="gallery-admin-media" src="${esc(url)}" alt="">`;
 
     return `<div class="gallery-admin-card">
       ${media}
       <div class="gallery-admin-body">
-        <div class="gallery-admin-caption">${esc(item.caption||"Bez podpisu")}</div>
+
+        <label>Podpis</label>
+        <input
+          class="gallery-admin-caption-edit"
+          id="gallery-caption-${item.id}"
+          type="text"
+          maxlength="180"
+          value="${esc(item.caption||"")}"
+          placeholder="Bez podpisu"
+        >
+
         ${item.is_visible?"":'<div class="gallery-hidden-badge">UKRYTE NA STRONIE</div>'}
+
         <div class="gallery-admin-actions">
+          <button class="gold" onclick="saveGalleryCaption('${item.id}')">Zapisz podpis</button>
+          ${isVideo ? "" : `<button class="dark" onclick="openGalleryCrop('${esc(item.storage_path)}')">Przytnij zdjęcie</button>`}
           <button class="dark" onclick="toggleGalleryVisibility('${item.id}',${!item.is_visible})">${item.is_visible?"Ukryj":"Pokaż"}</button>
           <button class="dark" onclick="moveGalleryItem('${item.id}',-1)">↑</button>
           <button class="dark" onclick="moveGalleryItem('${item.id}',1)">↓</button>
@@ -1054,6 +1151,25 @@ async function loadGalleryAdmin(){
       </div>
     </div>`;
   }).join("");
+}
+
+async function saveGalleryCaption(id){
+  const input=document.getElementById("gallery-caption-"+id);
+  if(!input) return;
+
+  const caption=input.value.trim() || null;
+  const {error}=await sb
+    .from("gallery_media")
+    .update({caption})
+    .eq("id",id);
+
+  if(error){
+    alert("Nie udało się zapisać podpisu: "+error.message);
+    return;
+  }
+
+  document.getElementById("galleryMsg").textContent="Podpis zapisany ✅";
+  await loadGalleryAdmin();
 }
 
 async function uploadGalleryMedia(){
@@ -1075,10 +1191,23 @@ async function uploadGalleryMedia(){
   const ext=(file.name.split(".").pop()|| (isImage?"jpg":"mp4")).toLowerCase().replace(/[^a-z0-9]/g,"");
   const path=`${Date.now()}-${crypto.randomUUID()}.${ext}`;
 
-  const {error:uploadError}=await sb.storage.from("gallery").upload(path,file,{upsert:false,contentType:file.type});
-  if(uploadError){msg.textContent="Błąd wysyłania: "+uploadError.message;btn.disabled=false;return;}
+  const {error:uploadError}=await sb.storage.from("gallery").upload(path,file,{
+    upsert:false,
+    contentType:file.type
+  });
 
-  const {data:maxData}=await sb.from("gallery_media").select("sort_order").order("sort_order",{ascending:false}).limit(1);
+  if(uploadError){
+    msg.textContent="Błąd wysyłania: "+uploadError.message;
+    btn.disabled=false;
+    return;
+  }
+
+  const {data:maxData}=await sb
+    .from("gallery_media")
+    .select("sort_order")
+    .order("sort_order",{ascending:false})
+    .limit(1);
+
   const nextOrder=(maxData?.[0]?.sort_order??0)+10;
 
   const {error:insertError}=await sb.from("gallery_media").insert({
@@ -1109,12 +1238,187 @@ async function toggleGalleryVisibility(id,visible){
   await loadGalleryAdmin();
 }
 
+async function openGalleryCrop(path){
+  const modal=document.getElementById("galleryCropModal");
+  const img=document.getElementById("galleryCropImage");
+  const msg=document.getElementById("galleryCropMsg");
+
+  if(typeof Cropper==="undefined"){
+    alert("Edytor przycinania nie został załadowany. Odśwież stronę i spróbuj ponownie.");
+    return;
+  }
+
+  msg.textContent="Ładowanie zdjęcia…";
+  galleryCropPath=path;
+
+  if(galleryCropper){
+    galleryCropper.destroy();
+    galleryCropper=null;
+  }
+
+  if(galleryCropObjectUrl){
+    URL.revokeObjectURL(galleryCropObjectUrl);
+    galleryCropObjectUrl="";
+  }
+
+  const {data,error}=await sb.storage.from("gallery").download(path);
+
+  if(error || !data){
+    msg.textContent="Nie udało się pobrać zdjęcia: "+(error?.message||"nieznany błąd");
+    modal.classList.remove("hidden");
+    modal.setAttribute("aria-hidden","false");
+    return;
+  }
+
+  galleryCropObjectUrl=URL.createObjectURL(data);
+  img.src=galleryCropObjectUrl;
+
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden","false");
+  msg.textContent="";
+
+  img.onload=()=>{
+    galleryCropper=new Cropper(img,{
+      aspectRatio:4/3,
+      viewMode:1,
+      autoCropArea:0.92,
+      dragMode:"move",
+      responsive:true,
+      background:false,
+      guides:true,
+      center:true,
+      movable:true,
+      zoomable:true,
+      cropBoxMovable:true,
+      cropBoxResizable:true
+    });
+  };
+}
+
+function closeGalleryCrop(){
+  const modal=document.getElementById("galleryCropModal");
+  const img=document.getElementById("galleryCropImage");
+
+  if(galleryCropper){
+    galleryCropper.destroy();
+    galleryCropper=null;
+  }
+
+  if(galleryCropObjectUrl){
+    URL.revokeObjectURL(galleryCropObjectUrl);
+    galleryCropObjectUrl="";
+  }
+
+  galleryCropPath="";
+  img.removeAttribute("src");
+  document.getElementById("galleryCropMsg").textContent="";
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden","true");
+}
+
+function galleryCropMimeFromPath(path){
+  const ext=(path.split(".").pop()||"").toLowerCase();
+  if(ext==="png") return "image/png";
+  if(ext==="webp") return "image/webp";
+  return "image/jpeg";
+}
+
+function galleryCropExtension(path){
+  const ext=(path.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"");
+  return ["jpg","jpeg","png","webp"].includes(ext) ? ext : "jpg";
+}
+
+async function canvasToBlob(canvas,mime){
+  return await new Promise((resolve)=>{
+    if(mime==="image/png"){
+      canvas.toBlob(resolve,mime);
+    }else{
+      canvas.toBlob(resolve,mime,0.92);
+    }
+  });
+}
+
+async function saveGalleryCrop(){
+  if(!galleryCropper || !galleryCropPath) return;
+
+  const btn=document.getElementById("galleryCropSaveBtn");
+  const msg=document.getElementById("galleryCropMsg");
+  btn.disabled=true;
+  msg.textContent="Zapisywanie przyciętego zdjęcia…";
+
+  try{
+    const canvas=galleryCropper.getCroppedCanvas({
+      width:1600,
+      height:1200,
+      imageSmoothingEnabled:true,
+      imageSmoothingQuality:"high"
+    });
+
+    if(!canvas){
+      throw new Error("Nie udało się utworzyć przyciętego obrazu.");
+    }
+
+    const mime=galleryCropMimeFromPath(galleryCropPath);
+    const ext=galleryCropExtension(galleryCropPath);
+    const blob=await canvasToBlob(canvas,mime);
+
+    if(!blob){
+      throw new Error("Nie udało się przygotować pliku.");
+    }
+
+    const newPath=`${Date.now()}-${crypto.randomUUID()}.${ext}`;
+
+    const {error:uploadError}=await sb.storage
+      .from("gallery")
+      .upload(newPath,blob,{
+        upsert:false,
+        contentType:mime
+      });
+
+    if(uploadError){
+      throw new Error("Błąd wysyłania przyciętego zdjęcia: "+uploadError.message);
+    }
+
+    const {error:updateError}=await sb
+      .from("gallery_media")
+      .update({storage_path:newPath})
+      .eq("storage_path",galleryCropPath);
+
+    if(updateError){
+      await sb.storage.from("gallery").remove([newPath]);
+      throw new Error("Błąd zapisu zdjęcia w galerii: "+updateError.message);
+    }
+
+    const oldPath=galleryCropPath;
+    await sb.storage.from("gallery").remove([oldPath]);
+
+    closeGalleryCrop();
+    document.getElementById("galleryMsg").textContent="Zdjęcie przycięte i zapisane ✅";
+    await loadGalleryAdmin();
+
+  }catch(err){
+    msg.textContent=err instanceof Error ? err.message : String(err);
+  }finally{
+    btn.disabled=false;
+  }
+}
+
 async function deleteGalleryMedia(id,path){
   if(!confirm("Usunąć ten element z galerii?")) return;
+
   const {error:storageError}=await sb.storage.from("gallery").remove([path]);
-  if(storageError){alert("Nie udało się usunąć pliku: "+storageError.message);return;}
+  if(storageError){
+    alert("Nie udało się usunąć pliku: "+storageError.message);
+    return;
+  }
+
   const {error}=await sb.from("gallery_media").delete().eq("id",id);
-  if(error){alert("Plik usunięto, ale błąd wpisu galerii: "+error.message);return;}
+
+  if(error){
+    alert("Plik usunięto, ale błąd wpisu galerii: "+error.message);
+    return;
+  }
+
   await loadGalleryAdmin();
 }
 
@@ -1123,16 +1427,31 @@ async function moveGalleryItem(id,direction){
     .select("id,sort_order")
     .order("sort_order",{ascending:true})
     .order("created_at",{ascending:false});
+
   if(error||!data) return;
+
   const index=data.findIndex(x=>x.id===id);
   const otherIndex=index+direction;
+
   if(index<0||otherIndex<0||otherIndex>=data.length) return;
-  const current=data[index],other=data[otherIndex];
-  const a=current.sort_order??index*10,b=other.sort_order??otherIndex*10;
+
+  const current=data[index];
+  const other=data[otherIndex];
+  const a=current.sort_order??index*10;
+  const b=other.sort_order??otherIndex*10;
+
   const r1=await sb.from("gallery_media").update({sort_order:b}).eq("id",current.id);
-  if(r1.error){alert("Błąd zmiany kolejności: "+r1.error.message);return;}
+  if(r1.error){
+    alert("Błąd zmiany kolejności: "+r1.error.message);
+    return;
+  }
+
   const r2=await sb.from("gallery_media").update({sort_order:a}).eq("id",other.id);
-  if(r2.error){alert("Błąd zmiany kolejności: "+r2.error.message);return;}
+  if(r2.error){
+    alert("Błąd zmiany kolejności: "+r2.error.message);
+    return;
+  }
+
   await loadGalleryAdmin();
 }
 
