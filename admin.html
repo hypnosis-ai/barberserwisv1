@@ -1136,12 +1136,12 @@ async function loadGalleryAdmin(){
           maxlength="180"
           value="${esc(item.caption||"")}"
           placeholder="Bez podpisu"
+          oninput="scheduleGalleryCaptionSave('${item.id}')"
         >
 
         ${item.is_visible?"":'<div class="gallery-hidden-badge">UKRYTE NA STRONIE</div>'}
 
         <div class="gallery-admin-actions">
-          <button class="gold" onclick="saveGalleryCaption('${item.id}')">Zapisz podpis</button>
           ${isVideo ? "" : `<button class="dark" onclick="openGalleryCrop('${esc(item.storage_path)}')">Przytnij zdjęcie</button>`}
           <button class="dark" onclick="toggleGalleryVisibility('${item.id}',${!item.is_visible})">${item.is_visible?"Ukryj":"Pokaż"}</button>
           <button class="dark" onclick="moveGalleryItem('${item.id}',-1)">↑</button>
@@ -1153,23 +1153,38 @@ async function loadGalleryAdmin(){
   }).join("");
 }
 
+const galleryCaptionTimers = {};
+
+function scheduleGalleryCaptionSave(id){
+  clearTimeout(galleryCaptionTimers[id]);
+
+  const msg=document.getElementById("galleryMsg");
+  if(msg) msg.textContent="Zapisywanie podpisu…";
+
+  galleryCaptionTimers[id]=setTimeout(()=>{
+    saveGalleryCaption(id);
+  },700);
+}
+
 async function saveGalleryCaption(id){
   const input=document.getElementById("gallery-caption-"+id);
   if(!input) return;
 
   const caption=input.value.trim() || null;
+
   const {error}=await sb
     .from("gallery_media")
     .update({caption})
     .eq("id",id);
 
+  const msg=document.getElementById("galleryMsg");
+
   if(error){
-    alert("Nie udało się zapisać podpisu: "+error.message);
+    if(msg) msg.textContent="Błąd zapisu podpisu: "+error.message;
     return;
   }
 
-  document.getElementById("galleryMsg").textContent="Podpis zapisany ✅";
-  await loadGalleryAdmin();
+  if(msg) msg.textContent="Podpis zapisany automatycznie ✅";
 }
 
 async function uploadGalleryMedia(){
@@ -2077,7 +2092,7 @@ function renderRepairs(data){
 
                 <div>
                   <label>Status sprzętu</label>
-                  <select id="item-status-${item.id}">
+                  <select id="item-status-${item.id}" onchange="autoSaveRepairItemStatus('${item.id}')">
                     ${[
                       "Nowe zgłoszenie",
                       "Przyjęto – oczekuje na diagnostykę",
@@ -2576,6 +2591,52 @@ async function saveRepairItem(itemId){
   if(totalInput){
     totalInput.value = totalQuote.toFixed(2) + " zł";
   }
+}
+
+async function autoSaveRepairItemStatus(itemId){
+  const select=document.getElementById("item-status-"+itemId);
+  const msg=document.getElementById("item-msg-"+itemId);
+  if(!select || !msg) return;
+
+  const status=select.value;
+  msg.textContent="Zapisywanie statusu…";
+
+  const {error}=await sb.rpc("admin_update_repair_item",{
+    p_item_id:itemId,
+    p_status:status,
+    p_quote_amount:undefined,
+    p_admin_note:undefined
+  });
+
+  // Jeżeli RPC wymaga wszystkich parametrów, używamy aktualnych,
+  // ale nie zapisujemy niezapisanych zmian z formularza.
+  if(error){
+    const repair=getRepairByItemId(itemId);
+    const oldItem=repair?.items?.find(item=>String(item.id)===String(itemId));
+
+    if(!oldItem){
+      msg.textContent="Błąd zapisu statusu: "+error.message;
+      return;
+    }
+
+    const retry=await sb.rpc("admin_update_repair_item",{
+      p_item_id:itemId,
+      p_status:status,
+      p_quote_amount:oldItem.quote_amount ?? null,
+      p_admin_note:oldItem.admin_note ?? null
+    });
+
+    if(retry.error){
+      msg.textContent="Błąd zapisu statusu: "+retry.error.message;
+      return;
+    }
+  }
+
+  const repair=getRepairByItemId(itemId);
+  const localItem=repair?.items?.find(item=>String(item.id)===String(itemId));
+  if(localItem) localItem.status=status;
+
+  msg.textContent="Status zapisany automatycznie ✅";
 }
 
 async function setQuickItemStatus(itemId,status){
