@@ -1435,6 +1435,7 @@ function updateAccountUi(u){
         return;
       }
 
+      // 1. Najpierw anulujemy zgłoszenie
       const {error}=await c.rpc(
         "client_cancel_repair",
         {
@@ -1447,7 +1448,32 @@ function updateAccountUi(u){
         return;
       }
 
-      alert("Zgłoszenie zostało anulowane.");
+      // 2. Potem wysyłamy powiadomienie do BarberSerwis
+      const {error:notifyError}=await c.functions.invoke(
+        "repair-cancel-notify",
+        {
+          body:{
+            repair_id:repairId
+          }
+        }
+      );
+
+      if(notifyError){
+        console.error(
+          "Błąd powiadomienia o anulowaniu:",
+          notifyError
+        );
+
+        alert(
+          "Zgłoszenie zostało anulowane ✅\n" +
+          "Wystąpił jednak problem z wysłaniem powiadomienia do serwisu."
+        );
+      }else{
+        alert(
+          "Zgłoszenie zostało anulowane ✅"
+        );
+      }
+
       await loadRepairs();
     }
 
