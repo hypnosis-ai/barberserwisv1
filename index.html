@@ -1453,18 +1453,27 @@ function updateAccountUi(u){
 
     async function setItemQuoteDecision(itemId,decision,button){
       const c=getSb();
+
       if(!c||!currentUser){
         alert("Najpierw zaloguj się do konta klienta.");
         return;
       }
+
       const accepted=decision==="accepted";
-      if(!confirm(accepted ? "Czy na pewno akceptujesz wycenę tego sprzętu?" : "Czy na pewno nie akceptujesz wyceny tego sprzętu?"))return;
+
+      if(!confirm(
+        accepted
+          ? "Czy na pewno akceptujesz wycenę tego sprzętu?"
+          : "Czy na pewno nie akceptujesz wyceny tego sprzętu?"
+      )) return;
 
       const clickedButton=button;
       const actionBox=clickedButton?.parentElement;
       const buttons=actionBox ? actionBox.querySelectorAll("button") : [];
+
       buttons.forEach(btn=>btn.disabled=true);
 
+      // 1. Zapis decyzji klienta
       const {data,error}=await c
         .from("repair_items")
         .update({quote_decision:decision})
@@ -1478,20 +1487,49 @@ function updateAccountUi(u){
         return;
       }
 
+      // 2. Sprawdzenie, czy decyzja faktycznie została zapisana
       const savedDecision=String(data?.quote_decision||"").trim().toLowerCase();
+
       if(savedDecision!==decision){
         buttons.forEach(btn=>btn.disabled=false);
         alert("Decyzja nie została poprawnie zapisana. Spróbuj ponownie.");
         return;
       }
 
+      // 3. Natychmiastowa zmiana widoku klienta
       if(actionBox){
         actionBox.innerHTML=accepted
           ? `<div style="padding:12px;border:1px solid rgba(89,190,120,.45);border-radius:10px;"><strong>Decyzja klienta:</strong> Wycena zaakceptowana ✅</div>`
           : `<div style="padding:12px;border:1px solid rgba(220,90,90,.45);border-radius:10px;"><strong>Decyzja klienta:</strong> Wycena odrzucona ❌</div>`;
       }
 
-      alert(accepted ? "Wycena tego sprzętu została zaakceptowana." : "Wycena tego sprzętu została odrzucona.");
+      // 4. Powiadomienie e-mail do BarberSerwis
+      const {error:notifyError}=await c.functions.invoke(
+        "quote-decision-notify",
+        {
+          body:{
+            item_id:itemId,
+            decision:decision
+          }
+        }
+      );
+
+      if(notifyError){
+        console.error("Błąd powiadomienia administratora:",notifyError);
+
+        alert(
+          accepted
+            ? "Wycena została zaakceptowana ✅\nDecyzja została zapisana, ale wystąpił problem z wysłaniem powiadomienia do serwisu."
+            : "Wycena została odrzucona ❌\nDecyzja została zapisana, ale wystąpił problem z wysłaniem powiadomienia do serwisu."
+        );
+      }else{
+        alert(
+          accepted
+            ? "Wycena tego sprzętu została zaakceptowana ✅"
+            : "Wycena tego sprzętu została odrzucona ❌"
+        );
+      }
+
       await loadRepairs();
     }
 
