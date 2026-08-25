@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
+  <script>
+    // Przy zwykłym wejściu/odświeżeniu panel zawsze zaczyna od góry.
+    if ("scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Panel Serwisu – BarberSerwis</title>
@@ -2436,14 +2442,41 @@ async function setQuickStatus(id,status){
    START
 ============================= */
 
-sb.auth.onAuthStateChange(
-  () => checkSession()
-);
+let initialAdminLoad = true;
 
-window.addEventListener(
-  "DOMContentLoaded",
-  checkSession
-);
+async function startAdminPanel(){
+  // Po odświeżeniu nie pozwalamy staremu #gallerySection
+  // ani zapisanej pozycji przewijania przenieść panelu na dół.
+  if (location.hash === "#gallerySection" || location.hash === "#repairsSection") {
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+
+  await checkSession();
+
+  if (initialAdminLoad) {
+    initialAdminLoad = false;
+    requestAnimationFrame(() => {
+      window.scrollTo(0, 0);
+      setTimeout(() => window.scrollTo(0, 0), 50);
+    });
+  }
+}
+
+sb.auth.onAuthStateChange(() => {
+  // Zmiana sesji po starcie nadal odświeża panel,
+  // ale nie przewija administratora podczas normalnej pracy.
+  if (!initialAdminLoad) {
+    checkSession();
+  }
+});
+
+window.addEventListener("DOMContentLoaded", startAdminPanel);
+
+window.addEventListener("pageshow", function () {
+  if (initialAdminLoad) {
+    window.scrollTo(0, 0);
+  }
+});
 
 </script>
 
@@ -2457,21 +2490,6 @@ window.addEventListener(
 >↑</button>
 
 
-<script>
-  if ("scrollRestoration" in history) {
-    history.scrollRestoration = "manual";
-  }
-
-  window.addEventListener("pageshow", function () {
-    window.scrollTo(0, 0);
-  });
-
-  window.addEventListener("load", function () {
-    setTimeout(function () {
-      window.scrollTo(0, 0);
-    }, 0);
-  });
-</script>
 
 </body>
 </html>
