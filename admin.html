@@ -1298,6 +1298,238 @@ async function saveDiagnosticNote(itemId){
   msg.textContent="Szczegóły diagnostyki zapisane ✅";
 }
 
+
+const BARBERSERWIS_LOGO_DATA =
+  new URL("logo-barberserwis5.png", window.location.href).href;
+
+function moneyPl(value){
+  const n=Number(value);
+  return Number.isFinite(n)
+    ? n.toFixed(2).replace(".",",")+" zł"
+    : "—";
+}
+
+function reportDecisionText(value){
+  if(value==="accepted") return "Zaakceptowana";
+  if(value==="rejected") return "Odrzucona";
+  return "Brak decyzji";
+}
+
+function printDiagnosticReport(itemId){
+  const repair=getRepairByItemId(itemId);
+  if(!repair){
+    alert("Nie znaleziono zgłoszenia dla tego sprzętu.");
+    return;
+  }
+
+  const item=(repair.items||[]).find(x=>String(x.id)===String(itemId));
+  if(!item){
+    alert("Nie znaleziono sprzętu.");
+    return;
+  }
+
+  const issues=getDiagnosticIssues(itemId);
+  const quoteLines=getQuoteLines(itemId);
+  const diagnosticNote=
+    document.getElementById("diagnostic-note-"+itemId)?.value.trim()
+    || item.diagnostic_note
+    || "";
+
+  const reportDate=new Date().toLocaleString("pl-PL");
+
+  const issuesHtml=issues.length
+    ? `<ul style="margin:8px 0 0 20px;padding:0;">
+        ${issues.map(x=>`<li style="margin:4px 0;">${esc(x.description||"—")}</li>`).join("")}
+       </ul>`
+    : `<div style="color:#666;">Brak zapisanych problemów diagnostycznych.</div>`;
+
+  const quoteHtml=quoteLines.length
+    ? `
+      <table style="width:100%;border-collapse:collapse;margin-top:10px;">
+        <thead>
+          <tr>
+            <th style="text-align:left;border-bottom:2px solid #222;padding:7px 5px;">Pozycja</th>
+            <th style="text-align:right;border-bottom:2px solid #222;padding:7px 5px;width:130px;">Cena</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${quoteLines.map(line=>`
+            <tr>
+              <td style="border-bottom:1px solid #ddd;padding:7px 5px;">${esc(line.description||"—")}</td>
+              <td style="border-bottom:1px solid #ddd;padding:7px 5px;text-align:right;font-weight:700;">
+                ${moneyPl(line.unit_price)}
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>`
+    : `<div style="color:#666;">Brak pozycji kosztorysu.</div>`;
+
+  const total=quoteItemTotal(itemId);
+
+  const reportHtml=`<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Raport diagnostyczny - ${esc(repair.ticket_no||"")}</title>
+<style>
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:#fff;
+    color:#111;
+    font-family:Arial,Helvetica,sans-serif;
+    font-size:13px;
+    line-height:1.45;
+  }
+  .page{
+    width:210mm;
+    min-height:297mm;
+    margin:0 auto;
+    padding:13mm 15mm 15mm;
+  }
+  .header{
+    display:flex;
+    align-items:center;
+    gap:18px;
+    border-bottom:2px solid #b9822f;
+    padding-bottom:10px;
+    margin-bottom:16px;
+  }
+  .logo{
+    width:145px;
+    height:auto;
+    display:block;
+  }
+  .header-title{
+    flex:1;
+  }
+  h1{
+    margin:0;
+    font-size:25px;
+    color:#7a4b13;
+  }
+  .subtitle{
+    color:#555;
+    margin-top:4px;
+  }
+  .meta{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:7px 22px;
+    margin:14px 0 18px;
+  }
+  .box{
+    border:1px solid #ccc;
+    border-radius:8px;
+    padding:12px;
+    margin:0 0 13px;
+    break-inside:avoid;
+  }
+  .box h2{
+    margin:0 0 8px;
+    font-size:16px;
+    color:#7a4b13;
+  }
+  .total{
+    text-align:right;
+    font-size:18px;
+    font-weight:800;
+    margin-top:12px;
+  }
+  .footer{
+    margin-top:24px;
+    padding-top:10px;
+    border-top:1px solid #ccc;
+    font-size:11px;
+    color:#666;
+  }
+  @media print{
+    @page{size:A4;margin:0}
+    body{background:#fff}
+    .page{margin:0}
+    .no-print{display:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <img class="logo" src="${BARBERSERWIS_LOGO_DATA}" alt="BarberSerwis">
+    <div class="header-title">
+      <h1>Raport diagnostyczny</h1>
+      <div class="subtitle">BarberSerwis.com — serwis maszynek do strzyżenia i trymerów</div>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div><strong>Numer zgłoszenia:</strong> ${esc(repair.ticket_no||"—")}</div>
+    <div><strong>Data raportu:</strong> ${esc(reportDate)}</div>
+    <div><strong>Klient:</strong> ${esc(repair.name||"—")}</div>
+    <div><strong>Telefon:</strong> ${esc(repair.phone||"—")}</div>
+    <div><strong>E-mail:</strong> ${esc(repair.email||"—")}</div>
+    <div><strong>Sprzęt:</strong> ${esc(item.device_name||"—")}</div>
+    <div><strong>Model:</strong> ${esc(item.model||"—")}</div>
+    <div><strong>Status:</strong> ${esc(normalizeItemStatus(item.status)||"—")}</div>
+  </div>
+
+  <div class="box">
+    <h2>Zgłoszony problem</h2>
+    <div><strong>Rodzaj:</strong> ${esc(item.issue_type||"—")}</div>
+    <div style="margin-top:5px;"><strong>Opis klienta:</strong> ${esc(item.problem||"—")}</div>
+  </div>
+
+  <div class="box">
+    <h2>Wynik diagnostyki</h2>
+    ${issuesHtml}
+    <div style="margin-top:12px;">
+      <strong>Szczegóły diagnostyki:</strong><br>
+      ${diagnosticNote ? esc(diagnosticNote).replaceAll("\\n","<br>") : "—"}
+    </div>
+  </div>
+
+  <div class="box">
+    <h2>Kosztorys</h2>
+    ${quoteHtml}
+    <div class="total">Razem dla sprzętu: ${moneyPl(total)}</div>
+    <div style="margin-top:8px;">
+      <strong>Decyzja klienta:</strong> ${esc(reportDecisionText(item.quote_decision))}
+    </div>
+  </div>
+
+  ${
+    item.admin_note
+      ? `<div class="box">
+           <h2>Informacja z serwisu</h2>
+           ${esc(item.admin_note).replaceAll("\\n","<br>")}
+         </div>`
+      : ""
+  }
+
+  <div class="footer">
+    Dokument wygenerowany z systemu BarberSerwis.com.
+    Raport dotyczy sprzętu przypisanego do zgłoszenia ${esc(repair.ticket_no||"—")}.
+  </div>
+</div>
+<script>
+  window.addEventListener("load",()=>{
+    setTimeout(()=>window.print(),250);
+  });
+<\/script>
+</body>
+</html>`;
+
+  const w=window.open("","_blank");
+  if(!w){
+    alert("Przeglądarka zablokowała nowe okno. Zezwól na wyskakujące okna dla BarberSerwis.");
+    return;
+  }
+
+  w.document.open();
+  w.document.write(reportHtml);
+  w.document.close();
+}
+
 /* =============================
    GALERIA ADMINISTRATORA
 ============================= */
@@ -2469,6 +2701,14 @@ function renderRepairs(data){
                     onclick="saveDiagnosticNote('${item.id}')"
                   >
                     Zapisz szczegóły diagnostyki
+                  </button>
+
+                  <button
+                    type="button"
+                    class="dark"
+                    onclick="printDiagnosticReport('${item.id}')"
+                  >
+                    Raport diagnostyczny / Drukuj
                   </button>
                 </div>
 
