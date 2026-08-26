@@ -1623,15 +1623,16 @@ async function savePayment(repairId){
       ? (current?.payment_paid_at || new Date().toISOString())
       : null;
 
-  const {error}=await sb
-    .from("repairs")
-    .update({
-      payment_method:method,
-      payment_status:status,
-      payment_amount:amount,
-      payment_paid_at:paidAt
-    })
-    .eq("id",repairId);
+  const {error}=await sb.rpc(
+    "admin_update_payment",
+    {
+      p_repair_id:repairId,
+      p_payment_method:method,
+      p_payment_status:status,
+      p_payment_amount:amount,
+      p_payment_paid_at:paidAt
+    }
+  );
 
   if(error){
     if(msg) msg.textContent="Błąd zapisu płatności: "+error.message;
@@ -1668,15 +1669,16 @@ async function markPaymentPaid(repairId){
   const paidAt=new Date().toISOString();
   if(msg) msg.textContent="Potwierdzanie płatności…";
 
-  const {error}=await sb
-    .from("repairs")
-    .update({
-      payment_method:method,
-      payment_status:"Opłacono",
-      payment_amount:amount,
-      payment_paid_at:paidAt
-    })
-    .eq("id",repairId);
+  const {error}=await sb.rpc(
+    "admin_update_payment",
+    {
+      p_repair_id:repairId,
+      p_payment_method:method,
+      p_payment_status:"Opłacono",
+      p_payment_amount:amount,
+      p_payment_paid_at:paidAt
+    }
+  );
 
   if(error){
     if(msg) msg.textContent="Błąd potwierdzenia płatności: "+error.message;
