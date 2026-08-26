@@ -998,6 +998,28 @@ Naprawiam sprzęt barberów i użytkowników domowych: Wahl, Andis, Babyliss, Pa
           </span>
         </label>
 
+        <label class="privacy-check">
+          <input
+            type="checkbox"
+            id="diagnosticConsent"
+            required
+          >
+
+          <span>
+            Wyraźnie proszę o rozpoczęcie odpłatnej diagnostyki przed upływem
+            14 dni od zawarcia umowy na odległość. Przyjmuję do wiadomości,
+            że standardowa opłata za wykonaną diagnostykę wynosi
+            <strong>30,00 zł za każde urządzenie</strong>, również w przypadku
+            późniejszej rezygnacji z naprawy. Zapoznałem/am się z
+            <a
+              href="regulamin.html"
+              target="_blank"
+            >
+              Regulaminem BarberSerwis.com
+            </a>.
+          </span>
+        </label>
+
         <label class="invoice-option">
           <input
             type="checkbox"
@@ -1810,6 +1832,17 @@ function toggleInvoiceFields(){
     alert(
       "Uzupełnij nazwę sprzętu, model, rodzaj problemu i opis dla każdego sprzętu."
     );
+    return;
+  }
+
+  const diagnosticConsent =
+    document.getElementById("diagnosticConsent");
+
+  if(!diagnosticConsent?.checked){
+    alert(
+      "Aby wysłać zgłoszenie, zaznacz zgodę na rozpoczęcie odpłatnej diagnostyki przed upływem 14 dni."
+    );
+    diagnosticConsent?.focus();
     return;
   }
 
