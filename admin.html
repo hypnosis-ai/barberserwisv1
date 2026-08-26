@@ -330,6 +330,45 @@
     .invoice-admin-yes{color:#86e6a4;font-weight:800}
     .invoice-admin-no{color:#aaa;font-weight:700}
 
+
+    /* ===== Płatności ===== */
+    .payment-admin-box{
+      margin-top:14px;
+      padding:14px;
+      background:#171b18;
+      border:1px solid #35513d;
+      border-radius:12px;
+    }
+    .payment-admin-title{
+      color:#86e6a4;
+      font-weight:800;
+      font-size:16px;
+      margin-bottom:10px;
+    }
+    .payment-admin-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:10px;
+      align-items:end;
+    }
+    .payment-admin-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:10px;
+    }
+    .payment-paid{
+      color:#86e6a4;
+      font-weight:800;
+    }
+    .payment-waiting{
+      color:#ffd77e;
+      font-weight:800;
+    }
+    @media(max-width:760px){
+      .payment-admin-grid{grid-template-columns:1fr}
+    }
+
     /* ===== Galeria administratora ===== */
     .gallery-admin-panel{margin-top:18px}
     .gallery-upload-grid{
@@ -802,6 +841,14 @@
 
       </div>
 
+    </div>
+
+    <div style="margin-top:14px;display:grid;grid-template-columns:minmax(0,260px) auto;gap:10px;align-items:end;">
+      <div>
+        <label>Wpłaty z wybranego dnia</label>
+        <input id="paymentDateFilter" type="date" onchange="applyFilters()">
+      </div>
+      <button type="button" class="dark" onclick="clearPaymentDateFilter()">Pokaż wszystkie</button>
     </div>
 
     <div
@@ -1551,6 +1598,124 @@ function printDiagnosticReport(itemId){
   w.document.close();
 }
 
+
+/* =============================
+   PŁATNOŚCI
+============================= */
+
+async function savePayment(repairId){
+  const method=document.getElementById("payment-method-"+repairId)?.value || null;
+  const status=document.getElementById("payment-status-"+repairId)?.value || "Oczekuje";
+  const amountRaw=document.getElementById("payment-amount-"+repairId)?.value ?? "";
+  const msg=document.getElementById("payment-msg-"+repairId);
+
+  const amount=amountRaw==="" ? null : Number(amountRaw);
+  if(amount !== null && (!Number.isFinite(amount) || amount < 0)){
+    if(msg) msg.textContent="Wpisz prawidłową kwotę.";
+    return;
+  }
+
+  if(msg) msg.textContent="Zapisywanie płatności…";
+
+  const current=allRepairs.find(r=>String(r.id)===String(repairId));
+  const paidAt =
+    status==="Opłacono"
+      ? (current?.payment_paid_at || new Date().toISOString())
+      : null;
+
+  const {error}=await sb
+    .from("repairs")
+    .update({
+      payment_method:method,
+      payment_status:status,
+      payment_amount:amount,
+      payment_paid_at:paidAt
+    })
+    .eq("id",repairId);
+
+  if(error){
+    if(msg) msg.textContent="Błąd zapisu płatności: "+error.message;
+    return;
+  }
+
+  if(current){
+    current.payment_method=method;
+    current.payment_status=status;
+    current.payment_amount=amount;
+    current.payment_paid_at=paidAt;
+  }
+
+  if(msg) msg.textContent="Płatność zapisana ✅";
+  renderRepairs(allRepairs);
+}
+
+async function markPaymentPaid(repairId){
+  const method=document.getElementById("payment-method-"+repairId)?.value || null;
+  const amountRaw=document.getElementById("payment-amount-"+repairId)?.value ?? "";
+  const msg=document.getElementById("payment-msg-"+repairId);
+  const amount=amountRaw==="" ? null : Number(amountRaw);
+
+  if(!method){
+    alert("Najpierw wybierz metodę płatności.");
+    return;
+  }
+
+  if(amount === null || !Number.isFinite(amount) || amount < 0){
+    alert("Wpisz prawidłową kwotę płatności.");
+    return;
+  }
+
+  const paidAt=new Date().toISOString();
+  if(msg) msg.textContent="Potwierdzanie płatności…";
+
+  const {error}=await sb
+    .from("repairs")
+    .update({
+      payment_method:method,
+      payment_status:"Opłacono",
+      payment_amount:amount,
+      payment_paid_at:paidAt
+    })
+    .eq("id",repairId);
+
+  if(error){
+    if(msg) msg.textContent="Błąd potwierdzenia płatności: "+error.message;
+    return;
+  }
+
+  const current=allRepairs.find(r=>String(r.id)===String(repairId));
+  if(current){
+    current.payment_method=method;
+    current.payment_status="Opłacono";
+    current.payment_amount=amount;
+    current.payment_paid_at=paidAt;
+  }
+
+  renderRepairs(allRepairs);
+}
+
+function clearPaymentDateFilter(){
+  const el=document.getElementById("paymentDateFilter");
+  if(el) el.value="";
+  applyFilters();
+}
+
+function matchesPaymentDate(repair,dateValue){
+  if(!dateValue) return true;
+  if(repair.payment_status!=="Opłacono" || !repair.payment_paid_at) return false;
+
+  const d=new Date(repair.payment_paid_at);
+  if(Number.isNaN(d.getTime())) return false;
+
+  const localDate=[
+    d.getFullYear(),
+    String(d.getMonth()+1).padStart(2,"0"),
+    String(d.getDate()).padStart(2,"0")
+  ].join("-");
+
+  return localDate===dateValue;
+}
+
 /* =============================
    GALERIA ADMINISTRATORA
 ============================= */
@@ -2260,7 +2425,7 @@ async function loadAllRepairs(){
     const {data:consentData,error:consentError} =
       await sb
         .from("repairs")
-        .select("id,diagnostic_consent,diagnostic_consent_at")
+        .select("id,diagnostic_consent,diagnostic_consent_at,payment_method,payment_status,payment_amount,payment_paid_at,payment_note")
         .in("id",consentRepairIds);
 
     if(consentError){
@@ -2275,6 +2440,11 @@ async function loadAllRepairs(){
         if(consent){
           repair.diagnostic_consent = consent.diagnostic_consent === true;
           repair.diagnostic_consent_at = consent.diagnostic_consent_at || null;
+          repair.payment_method = consent.payment_method || null;
+          repair.payment_status = consent.payment_status || "Oczekuje";
+          repair.payment_amount = consent.payment_amount ?? null;
+          repair.payment_paid_at = consent.payment_paid_at || null;
+          repair.payment_note = consent.payment_note || null;
         }
       });
     }
@@ -2443,6 +2613,8 @@ function updateStats(){
 ============================= */
 
 function applyFilters(){
+  const paymentDateValue=document.getElementById("paymentDateFilter")?.value || "";
+
 
   const search =
     document
@@ -2513,6 +2685,10 @@ function applyFilters(){
 
   }
 
+
+  if(paymentDateValue){
+    filtered = filtered.filter(r=>matchesPaymentDate(r,paymentDateValue));
+  }
 
   filtered.sort((a,b) => {
 
@@ -3000,6 +3176,60 @@ function renderRepairs(data){
               </div>
             `
         }
+      </div>
+
+      <div class="payment-admin-box">
+        <div class="payment-admin-title">Płatność</div>
+
+        <div class="payment-admin-grid">
+          <div>
+            <label>Metoda płatności</label>
+            <select id="payment-method-${r.id}">
+              <option value="">Wybierz metodę</option>
+              <option value="Przelew" ${r.payment_method==="Przelew"?"selected":""}>Przelew</option>
+              <option value="BLIK" ${r.payment_method==="BLIK"?"selected":""}>BLIK</option>
+              <option value="Pobranie" ${r.payment_method==="Pobranie"?"selected":""}>Pobranie</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Kwota płatności (zł)</label>
+            <input
+              id="payment-amount-${r.id}"
+              type="number"
+              min="0"
+              step="0.01"
+              value="${r.payment_amount != null ? Number(r.payment_amount).toFixed(2) : ""}"
+              placeholder="np. 180.00"
+            >
+          </div>
+
+          <div>
+            <label>Status</label>
+            <select id="payment-status-${r.id}">
+              <option value="Oczekuje" ${(!r.payment_status || r.payment_status==="Oczekuje")?"selected":""}>Oczekuje</option>
+              <option value="Opłacono" ${r.payment_status==="Opłacono"?"selected":""}>Opłacono</option>
+              <option value="Pobranie" ${r.payment_status==="Pobranie"?"selected":""}>Pobranie</option>
+              <option value="Anulowano" ${r.payment_status==="Anulowano"?"selected":""}>Anulowano</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;">
+          ${
+            r.payment_status==="Opłacono"
+              ? `<span class="payment-paid">OPŁACONO</span>
+                 ${r.payment_paid_at ? ` • ${esc(new Date(r.payment_paid_at).toLocaleString("pl-PL"))}` : ""}`
+              : `<span class="payment-waiting">${esc(r.payment_status || "Oczekuje")}</span>`
+          }
+        </div>
+
+        <div class="payment-admin-actions">
+          <button type="button" class="dark" onclick="savePayment('${r.id}')">Zapisz płatność</button>
+          <button type="button" class="gold" onclick="markPaymentPaid('${r.id}')">Oznacz jako opłacone</button>
+        </div>
+
+        <div id="payment-msg-${r.id}" class="item-msg"></div>
       </div>
 
       ${itemsHtml}
