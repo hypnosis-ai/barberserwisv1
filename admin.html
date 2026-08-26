@@ -1406,8 +1406,8 @@ function printDiagnosticReport(itemId){
   }
   h1{
     margin:0;
-    font-size:25px;
-    color:#7a4b13;
+    font-size:21px;
+    color:#6b3f0c;
   }
   .subtitle{
     color:#555;
@@ -1457,14 +1457,14 @@ function printDiagnosticReport(itemId){
   <div class="header">
     <img class="logo" src="${BARBERSERWIS_LOGO_DATA}" alt="BarberSerwis">
     <div class="header-title">
-      <h1>Raport diagnostyczny</h1>
-      <div class="subtitle">BarberSerwis.com — serwis maszynek do strzyżenia i trymerów</div>
+      <h1>PROTOKÓŁ DIAGNOSTYCZNY URZĄDZENIA</h1>
+      <div class="subtitle">BarberSerwis.com — dokument serwisowy</div>
     </div>
   </div>
 
   <div class="meta">
     <div><strong>Numer zgłoszenia:</strong> ${esc(repair.ticket_no||"—")}</div>
-    <div><strong>Data raportu:</strong> ${esc(reportDate)}</div>
+    <div><strong>Data sporządzenia:</strong> ${esc(reportDate)}</div>
     <div><strong>Klient:</strong> ${esc(repair.name||"—")}</div>
     <div><strong>Telefon:</strong> ${esc(repair.phone||"—")}</div>
     <div><strong>E-mail:</strong> ${esc(repair.email||"—")}</div>
@@ -1474,13 +1474,13 @@ function printDiagnosticReport(itemId){
   </div>
 
   <div class="box">
-    <h2>Zgłoszony problem</h2>
+    <h2>Dane zgłoszonej usterki</h2>
     <div><strong>Rodzaj:</strong> ${esc(item.issue_type||"—")}</div>
     <div style="margin-top:5px;"><strong>Opis klienta:</strong> ${esc(item.problem||"—")}</div>
   </div>
 
   <div class="box">
-    <h2>Wynik diagnostyki</h2>
+    <h2>Wynik przeprowadzonej diagnostyki</h2>
     ${issuesHtml}
     <div style="margin-top:12px;">
       <strong>Szczegóły diagnostyki:</strong><br>
@@ -1489,26 +1489,47 @@ function printDiagnosticReport(itemId){
   </div>
 
   <div class="box">
-    <h2>Kosztorys</h2>
-    ${quoteHtml}
-    <div class="total">Razem dla sprzętu: ${moneyPl(total)}</div>
-    <div style="margin-top:8px;">
-      <strong>Decyzja klienta:</strong> ${esc(reportDecisionText(item.quote_decision))}
+    <h2>Podsumowanie diagnostyki</h2>
+    <div>
+      Na podstawie przeprowadzonej diagnostyki określono stan techniczny urządzenia
+      oraz zidentyfikowano wskazane powyżej nieprawidłowości.
+    </div>
+    <div style="margin-top:10px;">
+      <strong>Status urządzenia:</strong> ${esc(normalizeItemStatus(item.status)||"—")}
     </div>
   </div>
 
   ${
     item.admin_note
       ? `<div class="box">
-           <h2>Informacja z serwisu</h2>
+           <h2>Uwagi serwisowe</h2>
            ${esc(item.admin_note).replaceAll("\\n","<br>")}
          </div>`
       : ""
   }
 
+  <div style="
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:40px;
+    margin-top:34px;
+    page-break-inside:avoid;
+  ">
+    <div>
+      <div style="border-top:1px solid #777;padding-top:6px;text-align:center;font-size:11px;color:#555;">
+        Podpis / pieczęć serwisu
+      </div>
+    </div>
+    <div>
+      <div style="border-top:1px solid #777;padding-top:6px;text-align:center;font-size:11px;color:#555;">
+        Data
+      </div>
+    </div>
+  </div>
+
   <div class="footer">
-    Dokument wygenerowany z systemu BarberSerwis.com.
-    Raport dotyczy sprzętu przypisanego do zgłoszenia ${esc(repair.ticket_no||"—")}.
+    BarberSerwis.com — protokół diagnostyczny urządzenia.<br>
+    Dokument dotyczy sprzętu przypisanego do zgłoszenia ${esc(repair.ticket_no||"—")}.
   </div>
 </div>
 <script>
