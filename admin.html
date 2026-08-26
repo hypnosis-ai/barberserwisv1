@@ -2252,6 +2252,34 @@ async function loadAllRepairs(){
       ? data
       : [];
 
+  // Uzupełnij zgłoszenia o zapis zgody na wcześniejsze rozpoczęcie diagnostyki.
+  // Jeśli kolumny nie są jeszcze zwracane przez admin_list_repairs, pobieramy je osobno.
+  const consentRepairIds = allRepairs.map(r => r.id).filter(Boolean);
+
+  if(consentRepairIds.length){
+    const {data:consentData,error:consentError} =
+      await sb
+        .from("repairs")
+        .select("id,diagnostic_consent,diagnostic_consent_at")
+        .in("id",consentRepairIds);
+
+    if(consentError){
+      console.warn("Nie udało się pobrać danych zgody diagnostycznej:", consentError.message);
+    }else{
+      const consentByRepair = Object.fromEntries(
+        (consentData || []).map(row => [String(row.id), row])
+      );
+
+      allRepairs.forEach(repair => {
+        const consent = consentByRepair[String(repair.id)];
+        if(consent){
+          repair.diagnostic_consent = consent.diagnostic_consent === true;
+          repair.diagnostic_consent_at = consent.diagnostic_consent_at || null;
+        }
+      });
+    }
+  }
+
   // Pobierz wszystkie sprzęty należące do zgłoszeń.
   const repairIds = allRepairs.map(r => r.id).filter(Boolean);
 
@@ -2949,6 +2977,30 @@ function renderRepairs(data){
       </div>
 
       ${invoiceHtml}
+
+      <div class="invoice-admin-box">
+        ${
+          r.diagnostic_consent
+            ? `
+              <div class="invoice-admin-yes">
+                Zgoda na rozpoczęcie odpłatnej diagnostyki przed upływem 14 dni: TAK
+              </div>
+              <div style="margin-top:5px;">
+                <strong>Data zgody:</strong>
+                ${
+                  r.diagnostic_consent_at
+                    ? esc(new Date(r.diagnostic_consent_at).toLocaleString("pl-PL"))
+                    : "—"
+                }
+              </div>
+            `
+            : `
+              <div class="invoice-admin-no">
+                Zgoda na rozpoczęcie odpłatnej diagnostyki przed upływem 14 dni: NIE / BRAK ZAPISU
+              </div>
+            `
+        }
+      </div>
 
       ${itemsHtml}
 
