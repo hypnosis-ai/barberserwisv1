@@ -614,6 +614,69 @@
       }
     }
 
+    /* ===== Zwijane zgłoszenia: same numery i klienci na liście ===== */
+    .repair-accordion{
+      padding:0;
+      overflow:hidden;
+      margin-bottom:10px;
+    }
+    .repair-toggle{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      width:100%;
+      padding:16px 20px;
+      border:0;
+      border-radius:16px;
+      background:transparent;
+      color:inherit;
+      font:inherit;
+      cursor:pointer;
+      text-align:left;
+    }
+    .repair-toggle:hover{background:#24252d}
+    .repair-toggle:focus-visible{
+      outline:2px solid #e9b45e;
+      outline-offset:-3px;
+    }
+    .repair-summary-text{
+      display:flex;
+      align-items:center;
+      flex-wrap:wrap;
+      gap:8px 18px;
+      min-width:0;
+    }
+    .repair-client-name{
+      color:#f5f5f5;
+      font-size:15px;
+      font-weight:700;
+      overflow-wrap:anywhere;
+    }
+    .repair-chevron{
+      flex:none;
+      display:inline-block;
+      color:#e9b45e;
+      font-size:22px;
+      line-height:1;
+      transition:transform .16s ease;
+    }
+    .repair-toggle[aria-expanded="true"] .repair-chevron{
+      transform:rotate(180deg);
+    }
+    .repair-detail-body{
+      padding:16px 20px 20px;
+      border-top:1px solid #343640;
+    }
+    .repair-detail-body[hidden]{display:none!important}
+    @media(max-width:600px){
+      .repair-toggle{padding:14px}
+      .repair-detail-body{padding:14px}
+    }
+    @media(prefers-reduced-motion:reduce){
+      .repair-chevron{transition:none}
+    }
+
     /* ===== Szczegóły diagnostyki ===== */
     .diagnostic-box{
       margin-top:14px;
@@ -948,6 +1011,8 @@ const sb =
 
 
 let allRepairs = [];
+// Zachowujemy otwarte zgłoszenie po filtrach i ręcznym odświeżeniu.
+let expandedRepairId = null;
 let servicePriceList = [];
 let quoteLinesByItem = {};
 let diagnosticIssueCatalog = [];
@@ -2312,6 +2377,7 @@ async function adminLogout(){
   await sb.auth.signOut();
 
   allRepairs = [];
+  expandedRepairId = null;
 
   document
     .getElementById("repairs")
@@ -2816,6 +2882,46 @@ function applyFilters(){
 
 
 /* =============================
+   ZWIJANIE / ROZWIJANIE ZGŁOSZEŃ
+============================= */
+
+function toggleRepairDetails(button){
+  const card = button.closest(".repair-accordion");
+  if(!card) return;
+
+  const repairId = card.dataset.repairId;
+  const shouldOpen = button.getAttribute("aria-expanded") !== "true";
+  const body = card.querySelector(".repair-detail-body");
+  if(!body) return;
+
+  // Tylko jedno zgłoszenie rozwinięte naraz; chowamy, ale nie usuwamy
+  // pól ani niezapisanych wartości z formularzy innych zgłoszeń.
+  if(shouldOpen){
+    const beforeTop = button.getBoundingClientRect().top;
+    document.querySelectorAll("#repairs .repair-accordion").forEach(otherCard => {
+      if(otherCard === card) return;
+      const otherButton = otherCard.querySelector(".repair-toggle");
+      const otherBody = otherCard.querySelector(".repair-detail-body");
+      if(otherButton && otherBody){
+        otherButton.setAttribute("aria-expanded", "false");
+        otherBody.hidden = true;
+      }
+    });
+    button.setAttribute("aria-expanded", "true");
+    body.hidden = false;
+    expandedRepairId = repairId;
+    // Podczas zmiany rozwiniętego zlecenia utrzymaj kliknięty nagłówek
+    // w bieżącej pozycji na ekranie, bez płynnego przewijania.
+    const offset = button.getBoundingClientRect().top - beforeTop;
+    if(Math.abs(offset) > 1) window.scrollBy(0, offset);
+  }else{
+    button.setAttribute("aria-expanded", "false");
+    body.hidden = true;
+    expandedRepairId = null;
+  }
+}
+
+/* =============================
    WYŚWIETLANIE
 ============================= */
 
@@ -2843,7 +2949,7 @@ function renderRepairs(data){
     const div =
       document.createElement("div");
 
-    div.className = "repair";
+    div.className = "repair repair-accordion";
     div.dataset.repairId = String(r.id);
 
 
@@ -3199,27 +3305,34 @@ function renderRepairs(data){
         </div>
       `;
 
+    const isExpanded = expandedRepairId === String(r.id);
+
     div.innerHTML = `
-
-      <div class="repair-head">
-
-        <div>
-
-          <div class="ticket">
-            ${esc(r.ticket_no)}
-          </div>
-
-          <div class="muted">
-            Zgłoszono: ${created}
-          </div>
-
-        </div>
-
-        <span class="status-pill ${statusClass(r.status)}">
-          ${esc(r.status || "Nowe zgłoszenie")}
+      <button
+        type="button"
+        class="repair-toggle"
+        aria-expanded="${isExpanded ? "true" : "false"}"
+        aria-controls="repair-content-${esc(r.id)}"
+        onclick="toggleRepairDetails(this)"
+      >
+        <span class="repair-summary-text">
+          <span class="ticket">${esc(r.ticket_no || "—")}</span>
+          <span class="repair-client-name">${esc(r.name || "Brak danych klienta")}</span>
         </span>
+        <span class="repair-chevron" aria-hidden="true">⌄</span>
+      </button>
 
-      </div>
+      <div
+        class="repair-detail-body"
+        id="repair-content-${esc(r.id)}"
+        ${isExpanded ? "" : "hidden"}
+      >
+        <div class="repair-head">
+          <div class="muted">Zgłoszono: ${esc(created)}</div>
+          <span class="status-pill ${statusClass(r.status)}">
+            ${esc(r.status || "Nowe zgłoszenie")}
+          </span>
+        </div>
 
 
       <div class="client-info">
@@ -3456,6 +3569,7 @@ function renderRepairs(data){
         class="msg"
         id="msg-${r.id}"
       ></div>
+      </div>
 
     `;
 
