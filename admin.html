@@ -1091,9 +1091,20 @@ function addPriceListLine(itemId){
     return;
   }
 
-  let price = Number(priceInput?.value);
-  if(!Number.isFinite(price)){
-    price = Number(service.default_price ?? 0);
+  // Dla pozycji "cena do ustalenia" brak kwoty nie moze oznaczac 0 zl.
+  // Kwoty kosztorysu zatwierdza administrator podczas dodawania pozycji.
+  const rawPrice = (priceInput?.value ?? "").trim();
+  if(rawPrice === ""){
+    alert("Wpisz cenę przed dodaniem pozycji do kosztorysu.");
+    priceInput?.focus();
+    return;
+  }
+
+  const price = Number(rawPrice);
+  if(!Number.isFinite(price) || price < 0){
+    alert("Podaj prawidłową cenę (0 zł lub więcej).");
+    priceInput?.focus();
+    return;
   }
 
   getQuoteLines(itemId).push({
