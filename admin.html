@@ -461,9 +461,18 @@
       display:flex;
       gap:10px;
       flex-wrap:wrap;
-      margin-top:14px;
+      position:sticky;
+      top:8px;
+      z-index:50;
+      margin:0 0 16px;
+      padding:10px;
+      background:rgba(24,25,31,.97);
+      border:1px solid #343640;
+      border-radius:14px;
+      box-shadow:0 6px 20px rgba(0,0,0,.2);
     }
-    .admin-nav a{
+    .admin-nav.hidden,.admin-view.hidden{display:none}
+    .admin-nav button{
       display:inline-flex;
       align-items:center;
       justify-content:center;
@@ -476,9 +485,15 @@
       text-decoration:none;
       cursor:pointer;
     }
-    .admin-nav a:hover{
+    .admin-nav button:hover,
+    .admin-nav button:focus-visible{
       border-color:rgba(224,179,106,.65);
       background:#272731;
+    }
+    .admin-nav button.is-active{
+      background:#e9b45e;
+      color:#17120b;
+      border-color:#e9b45e;
     }
     .admin-section-title{
       margin:28px 0 12px;
@@ -719,12 +734,14 @@
 
     </div>
 
-    <div class="admin-nav">
-      <a href="#repairsSection">Zgłoszenia</a>
-      <a href="#gallerySection">Galeria</a>
-    </div>
-
   </div>
+
+  <div id="adminViewTabs" class="admin-nav hidden" role="tablist" aria-label="Sekcje panelu">
+    <button type="button" class="is-active" role="tab" id="repairsTab" aria-selected="true" aria-controls="repairsSection" onclick="setAdminView('repairs')">Zgłoszenia</button>
+    <button type="button" role="tab" id="galleryTab" aria-selected="false" aria-controls="galleryAdminView" onclick="setAdminView('gallery')">Galeria</button>
+  </div>
+
+  <section id="repairsSection" class="admin-view hidden" role="tabpanel" aria-labelledby="repairsTab">
 
 
   <!-- ZGŁOSZENIA / STATYSTYKI / FILTRY -->
@@ -863,6 +880,9 @@
 
   <div id="repairs"></div>
 
+  </section>
+
+  <section id="galleryAdminView" class="admin-view hidden" role="tabpanel" aria-labelledby="galleryTab">
   <div id="gallerySection">
     <h2 class="admin-section-title">Galeria strony</h2>
     <p class="admin-section-note">Dodawaj, ukrywaj, porządkuj i usuwaj zdjęcia oraz filmy widoczne na stronie głównej.</p>
@@ -884,6 +904,8 @@
     <div id="galleryMsg" class="msg"></div>
     <div id="galleryAdminGrid" class="gallery-admin-grid"></div>
   </div>
+
+  </section>
 
   <div id="galleryCropModal" class="gallery-crop-modal hidden" aria-hidden="true">
     <div class="gallery-crop-dialog">
@@ -1647,7 +1669,7 @@ async function savePayment(repairId){
   }
 
   if(msg) msg.textContent="Płatność zapisana ✅";
-  renderRepairs(allRepairs);
+  // Pola sa juz aktualne; nie przebudowujemy calego formularza po zapisie.
 }
 
 async function markPaymentPaid(repairId){
@@ -1693,7 +1715,10 @@ async function markPaymentPaid(repairId){
     current.payment_paid_at=paidAt;
   }
 
-  renderRepairs(allRepairs);
+  const paymentStatus = document.getElementById("payment-status-"+repairId);
+  if(paymentStatus) paymentStatus.value="Opłacono";
+  const paymentMsg = document.getElementById("payment-msg-"+repairId);
+  if(paymentMsg) paymentMsg.textContent="Płatność potwierdzona ✅";
 }
 
 function clearPaymentDateFilter(){
@@ -2290,6 +2315,36 @@ async function adminLogout(){
    SESJA
 ============================= */
 
+let activeAdminView = "repairs";
+
+// Zakladki zmieniaja widok bez skakania do kotwic i bez ponownego pobierania danych.
+function setAdminView(view, moveToTabs = true){
+  if(view !== "repairs" && view !== "gallery") return;
+
+  activeAdminView = view;
+  const loggedIn = !document.getElementById("adminPanel").classList.contains("hidden");
+  document.getElementById("repairsSection").classList.toggle("hidden", !loggedIn || view !== "repairs");
+  document.getElementById("galleryAdminView").classList.toggle("hidden", !loggedIn || view !== "gallery");
+
+  for(const [key, id] of [["repairs", "repairsTab"], ["gallery", "galleryTab"]]){
+    const tab = document.getElementById(id);
+    const active = key === view;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-selected", String(active));
+    tab.tabIndex = active ? 0 : -1;
+  }
+
+  // Przewijanie jest celowe tylko po kliknieciu zakladki, nie po zapisie.
+  if(moveToTabs && loggedIn){
+    requestAnimationFrame(() => {
+      const tabs = document.getElementById("adminViewTabs");
+      const targetY = Math.max(0, window.scrollY + tabs.getBoundingClientRect().top - 8);
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({top:targetY, behavior:reduceMotion ? "auto" : "smooth"});
+    });
+  }
+}
+
 async function checkSession(){
 
   const {data} =
@@ -2327,6 +2382,9 @@ async function checkSession(){
     .classList
     .toggle("hidden", !user);
 
+  document.getElementById("adminViewTabs").classList.toggle("hidden", !user);
+  setAdminView(activeAdminView, false);
+
 
   if(user){
 
@@ -2352,8 +2410,19 @@ async function loadAllRepairs(){
   const box =
     document.getElementById("repairs");
 
-  box.innerHTML =
-    '<div class="panel">Ładowanie zgłoszeń…</div>';
+  // Nie usuwamy starej listy podczas pobierania: to powodowalo skok przewijania.
+  const cards = Array.from(box.querySelectorAll(".repair"));
+  const visibleCard = cards.find(card => {
+    const rect = card.getBoundingClientRect();
+    return rect.bottom > 96 && rect.top < window.innerHeight;
+  });
+  const scrollAnchor = visibleCard
+    ? {id:visibleCard.dataset.repairId, top:visibleCard.getBoundingClientRect().top}
+    : null;
+
+  if(!cards.length){
+    box.innerHTML = '<div class="panel">Ładowanie zgłoszeń…</div>';
+  }
 
   const {data:priceData,error:priceError} =
     await sb
@@ -2563,6 +2632,15 @@ async function loadAllRepairs(){
 
   applyFilters();
 
+  // Przy recznym odswiezeniu pozostajemy przy tym samym widocznym zgloszeniu.
+  if(scrollAnchor){
+    const nextCard = Array.from(box.querySelectorAll(".repair"))
+      .find(card => card.dataset.repairId === scrollAnchor.id);
+    if(nextCard){
+      window.scrollBy(0, nextCard.getBoundingClientRect().top - scrollAnchor.top);
+    }
+  }
+
 }
 
 
@@ -2755,6 +2833,7 @@ function renderRepairs(data){
       document.createElement("div");
 
     div.className = "repair";
+    div.dataset.repairId = String(r.id);
 
 
     const created =
@@ -3589,7 +3668,16 @@ async function saveRepair(id){
 
   msg.textContent = "Zmiany zapisane ✅ E-mail nie został wysłany.";
 
-  setTimeout(loadAllRepairs,500);
+  // Zmieniamy tylko stan tego zgloszenia. Pelny rerender niszczyl fokus,
+  // niezapisane pola innych zgloszen i przesuwal cala strone.
+  const repairCard = Array.from(document.querySelectorAll(".repair"))
+    .find(card => card.dataset.repairId === String(id));
+  const pill = repairCard?.querySelector(".status-pill");
+  if(pill){
+    pill.className = "status-pill " + statusClass(status);
+    pill.textContent = status;
+  }
+  updateStats();
 }
 
 
@@ -3714,24 +3802,13 @@ async function setQuickStatus(id,status){
    START
 ============================= */
 
-let initialAdminLoad = true;
-
 async function startAdminPanel(){
-  // Po odświeżeniu nie pozwalamy staremu #gallerySection
-  // ani zapisanej pozycji przewijania przenieść panelu na dół.
+  // Usuwamy ewentualna stara kotwice; zakladki dzialaja juz bez zmiany URL.
   if (location.hash === "#gallerySection" || location.hash === "#repairsSection") {
     history.replaceState(null, "", location.pathname + location.search);
   }
 
   await checkSession();
-
-  if (initialAdminLoad) {
-    initialAdminLoad = false;
-    requestAnimationFrame(() => {
-      window.scrollTo(0, 0);
-      setTimeout(() => window.scrollTo(0, 0), 50);
-    });
-  }
 }
 
 sb.auth.onAuthStateChange(() => {
@@ -3743,12 +3820,6 @@ sb.auth.onAuthStateChange(() => {
 });
 
 window.addEventListener("DOMContentLoaded", startAdminPanel);
-
-window.addEventListener("pageshow", function () {
-  if (initialAdminLoad) {
-    window.scrollTo(0, 0);
-  }
-});
 
 </script>
 
